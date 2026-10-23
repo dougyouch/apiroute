@@ -4,6 +4,20 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.0](https://github.com/dougyouch/apiroute/compare/v1.1.0...v1.2.0) (2026-10-23)
+
+
+### Features
+
+* auth base classes for generated clients, operation names and SOAP headers ([feab2db](https://github.com/dougyouch/apiroute/commit/feab2db9de25cd8349842947349a68612c33ec15))
+* auth base classes for generated clients, operation names and SOAP headers ([2313b19](https://github.com/dougyouch/apiroute/commit/2313b19768a36b0301b84ee27c678e9f9ef76055))
+* **codegen:** plain-text docstrings from HTML spec descriptions ([6ca25d9](https://github.com/dougyouch/apiroute/commit/6ca25d99efcd7473e8a8ff049abf870cf25a009e))
+
+
+### Bug Fixes
+
+* **codegen:** skip Content-Type, Accept and Authorization header parameters ([879698e](https://github.com/dougyouch/apiroute/commit/879698e3e1b08c342def9a1613cf01bb22aa41bd))
+
 ## [1.1.0](https://github.com/dougyouch/apiroute/compare/v1.0.0...v1.1.0) (2026-10-23)
 
 
