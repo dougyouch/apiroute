@@ -1,4 +1,5 @@
 import functools
+import inspect
 from collections.abc import Callable
 from typing import Any
 
@@ -12,18 +13,38 @@ from apiroute.route_spec import RouteSpec
 class RouteMethod:
     """What @route leaves on the class: binds to a client or section as a request method.
 
-    The router compiles it in __init_subclass__, so a bad route fails when its class is created.
+    The router compiles it in __init_subclass__, so a bad route fails when its class is
+    created; with compile_routes = "lazy" it is compiled on first use instead.
     """
 
     def __init__(self, func: Callable, spec: RouteSpec):
         self._func = func
         self._spec = spec
-        self.definition: RouteDefinition | None = None
+        self._definition: RouteDefinition | None = None
+        self._owner: type | None = None
+        self._name: str | None = None
         functools.update_wrapper(self, func)
 
     def compile(self, owner: type, name: str) -> None:
-        self.definition = RouteCompiler(owner.__qualname__, name, self._func, self._spec).compile()
-        self.__signature__ = self.definition.call_signature
+        self.defer(owner, name)
+        self._definition = RouteCompiler(owner.__qualname__, name, self._func, self._spec).compile()
+
+    def defer(self, owner: type, name: str) -> None:
+        """Remembers where the route lives, to compile it on first use."""
+        self._owner = owner
+        self._name = name
+
+    @property
+    def definition(self) -> RouteDefinition:
+        if self._definition is None:
+            if self._owner is None:
+                raise RuntimeError(f"route {self._func.__name__} is not on a Client or Section")
+            self.compile(self._owner, self._name)
+        return self._definition
+
+    @property
+    def __signature__(self) -> inspect.Signature:
+        return self.definition.call_signature
 
     def __call__(self, router: Any, *args: Any, **kwargs: Any) -> Any:
         """Called through the class, like an unbound method: Api.get_user(client, ...)."""

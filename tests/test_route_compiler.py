@@ -80,3 +80,18 @@ def test_variadic_parameters_are_rejected():
         class Api(Client):
             @route("/x")
             def get_x(self, **rest): ...
+
+
+def test_route_headers_with_placeholders(transport, recorder):
+    class Api(Client):
+        base_url = "https://x.test"
+        headers = {"X-Class": "1"}
+        tenant = "acme"
+
+        @route("POST", "/soap", headers={"SOAPAction": "urn:{action}", "X-Tenant": "{tenant}"})
+        def call(self, action, body): ...
+
+    Api(transport=transport).call("GetWeather", body="<x/>")
+    assert recorder.last.headers["SOAPAction"] == "urn:GetWeather"
+    assert recorder.last.headers["X-Tenant"] == "acme"
+    assert recorder.last.headers["X-Class"] == "1"

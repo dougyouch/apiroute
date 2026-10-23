@@ -4,6 +4,7 @@ from apiroute.api_route_error import ApiRouteError
 from apiroute.argument_targets import Body, Header, Query
 from apiroute.client import Client
 from apiroute.from_client import FROM_CLIENT
+from apiroute.lazy_attribute import lazy
 from apiroute.namespace import namespace
 from apiroute.request_spec import RequestSpec
 from apiroute.response_validation_error import ResponseValidationError
@@ -24,6 +25,7 @@ from apiroute.transports import (
     ThreadLocalTransport,
     Transport,
 )
+from apiroute.typed_client import TypedClient
 from apiroute.unexpected_response import UnexpectedResponse
 
 __all__ = [
@@ -48,9 +50,11 @@ __all__ = [
     "Section",
     "ThreadLocalTransport",
     "Transport",
+    "TypedClient",
     "UnexpectedResponse",
     "aclose_transports",
     "close_transports",
+    "lazy",
     "namespace",
     "route",
     "use_transport",

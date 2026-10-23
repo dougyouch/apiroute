@@ -39,9 +39,10 @@ class RouteCompiler:
     def _compile(self) -> RouteDefinition:
         path = PathTemplate(self._path())
         query = None if self._spec.query is None else ValueTemplate(self._spec.query)
+        headers = None if self._spec.headers is None else ValueTemplate(self._spec.headers)
         body, literal_body = self._body()
         signature = inspect.signature(self._func)
-        referenced = set(path.names) | _names(query) | _names(body)
+        referenced = set(path.names) | _names(query) | _names(body) | _names(headers)
         has_body_template = body is not None or literal_body is not None
         stream_param = self._stream_param(signature)
         bindings, body_param, result_param = self._bind_arguments(
@@ -64,6 +65,7 @@ class RouteCompiler:
             stream=self._spec.stream,
             stream_param=stream_param,
             converter=self._converter(signature, result_param),
+            headers=headers,
         )
 
     def _http_method(self) -> str:

@@ -46,6 +46,10 @@ class RequestBuilder:
     ) -> dict[str, str]:
         headers: dict[str, tuple[str, Any]] = {}
         _merge_headers(headers, self._dynamic(self._config.headers))
+        if definition.headers is not None:
+            _merge_headers(
+                headers, definition.headers.render(PlaceholderResolver(values, self._root))
+            )
         if content_type and "content-type" not in headers:
             headers["content-type"] = ("Content-Type", content_type)
         _merge_headers(headers, self._bound(definition, values, "header"))

@@ -17,6 +17,7 @@ CONFIG_ATTRIBUTES = (
     "body_format",
     "query_format",
     "inherit",
+    "compile_routes",
 )
 
 # These merge down the class hierarchy, as the gem's header and query_param calls do;
@@ -37,6 +38,9 @@ class ClientConfig:
     body_format: Any = "json"
     query_format: Any = "flat"
     inherit: frozenset[str] = frozenset()
+    # "eager" checks every route when the class is created; "lazy" waits for first use,
+    # which generated clients with thousands of routes rely on to load quickly
+    compile_routes: str = "eager"
 
     @classmethod
     def from_class(cls, router_class: type) -> "ClientConfig":
@@ -77,6 +81,8 @@ class ClientConfig:
             raise ValueError(f"query_format must be one of {QUERY_FORMATS} or a callable")
         if not isinstance(self.retries, Retries):
             raise ValueError("retries must be a Retries")
+        if self.compile_routes not in ("eager", "lazy"):
+            raise ValueError("compile_routes must be 'eager' or 'lazy'")
         if not self.inherit <= INHERITABLE:
             raise ValueError(f"inherit may only list {sorted(INHERITABLE)}")
 
