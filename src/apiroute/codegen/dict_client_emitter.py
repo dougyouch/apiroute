@@ -22,6 +22,7 @@ class DictClientEmitter:
         self._with_models = with_models
         self._version = version
         self._inliner = AliasInliner(definition)
+        self._base_class = _split_base_class(definition.base_class) if self._is_root else None
 
     def source(self) -> str:
         out = SourceWriter()
@@ -54,11 +55,17 @@ class DictClientEmitter:
         if standard:
             out.lines(*standard, "")
         names = [n for n in ("Header", "Query", "lazy", "route") if _mentions(body, n)]
-        names.append("Client" if self._is_root else "Section")
+        if not self._is_root:
+            names.append("Section")
+        elif self._base_class is None:
+            names.append("Client")
         out.line(f"from apiroute import {import_names(names)}")
         soap = [n for n in ("SoapBody", "SoapDecoder") if _mentions(body, n)]
         if soap:
             out.line(f"from apiroute.soap import {import_names(soap)}")
+        if self._base_class is not None:
+            module, name = self._base_class
+            out.line(f"from {module} import {name}")
 
     def _body_text(self) -> str:
         out = SourceWriter()
@@ -67,6 +74,8 @@ class DictClientEmitter:
 
     def _class(self, out: SourceWriter) -> None:
         base = "Client" if self._is_root else "Section"
+        if self._base_class is not None:
+            base = self._base_class[1]
         out.line(f"class {self._group.class_name}({base}):")
         with out.indented():
             doc = self._group.description or self._definition.description
@@ -74,7 +83,7 @@ class DictClientEmitter:
             out.line()
             self._settings(out)
             self._lazy_attributes(out)
-            if self._is_root and self._definition.auth:
+            if self._is_root and self._definition.auth and self._base_class is None:
                 self._init(out)
             for operation in self._group.operations:
                 out.line()
@@ -86,7 +95,7 @@ class DictClientEmitter:
         out.line('compile_routes = "lazy"')
         if not self._is_root:
             out.line('inherit = ("headers", "query_params")  # the client\'s auth')
-        if self._is_root:
+        if self._is_root and self._base_class is None:
             self._auth_settings(out)
 
     def _auth_settings(self, out: SourceWriter) -> None:
@@ -143,6 +152,8 @@ def _mentions(text: str, name: str) -> bool:
 
 def _route_arguments(operation: Operation) -> list[str]:
     arguments = [py_str(operation.method), py_str(operation.path)]
+    if operation.operation_id and operation.operation_id != operation.name:
+        arguments.append(f"operation={py_str(operation.operation_id)}")
     if operation.returns != "json":
         arguments.append(f"returns={py_str(operation.returns)}")
     if operation.soap is not None:
@@ -162,6 +173,8 @@ def _soap_arguments(operation: Operation) -> list[str]:
         body.append("qualified=False")
     if soap.version == "1.2" and soap.action:
         body.append(f"action={py_str(soap.action)}")
+    if operation.operation_id:
+        body.append(f"operation={py_str(operation.operation_id)}")
     decoder = f"SoapDecoder({py_str(soap.response_namespace)}, {py_str(soap.version)})"
     return [f"body_format=SoapBody({', '.join(body)})", f"decoder={decoder}", "expected=(200, 500)"]
 
@@ -213,3 +226,15 @@ def _credential(scheme: AuthScheme) -> str:
         encoded = f"base64.b64encode({value}.encode()).decode()"
         return f'lambda self: f"Basic {{{encoded}}}" if {value} else None'
     return f"lambda self: {value}"
+
+
+def _split_base_class(base_class: str | None) -> tuple[str, str] | None:
+    """ "package.module:Class" (or "package.module.Class") as (module, class name)."""
+    if base_class is None:
+        return None
+    module, _, name = (
+        base_class.rpartition(":") if ":" in base_class else base_class.rpartition(".")
+    )
+    if not module or not name.isidentifier():
+        raise ValueError(f"--base-class needs package.module:Class, not {base_class!r}")
+    return module, name

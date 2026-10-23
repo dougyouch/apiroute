@@ -17,6 +17,7 @@ def route(
     headers: dict[str, Any] | None = None,
     body_format: Any = None,
     decoder: Any = None,
+    operation: str | None = None,
 ) -> RouteDecorator:
     """Declares an endpoint, on a def or on its own:
 
@@ -33,6 +34,8 @@ def route(
     the class's, and may hold {name} placeholders. body_format ("json", "form", "multipart"
     or a callable) overrides the class's for this route. decoder, a callable taking the
     httpx.Response, replaces JSON parsing for returns="json" (SOAP uses it to read envelopes).
+    operation is the API's own name for the call, passed to hooks as RequestSpec.operation;
+    it defaults to the method name.
     """
     method, path = _split(method_and_path)
     path = current_prefix() + path
@@ -49,6 +52,7 @@ def route(
         headers=headers,
         body_format=body_format,
         decoder=decoder,
+        operation=operation,
     )
     return RouteDecorator(spec)
 

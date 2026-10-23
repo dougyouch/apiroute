@@ -15,6 +15,7 @@ def main(argv: list[str] | None = None) -> int:
     client_name = arguments.client_name or f"{pascal_case(out_dir.name)}Api"
     try:
         definition = _reader(arguments.format, arguments.spec, client_name).read()
+        definition.base_class = arguments.base_class
         written = PackageEmitter(definition, with_models=arguments.models).write(out_dir)
         formatted = not arguments.no_format and SourceFormatter().format(written)
     except (OSError, ValueError, KeyError, RuntimeError, httpx.HTTPError) as error:
@@ -44,6 +45,12 @@ def _parser() -> argparse.ArgumentParser:
         "--models",
         action="store_true",
         help="also generate the typed .models layer (pydantic request and response models)",
+    )
+    generate.add_argument(
+        "--base-class",
+        metavar="MODULE:CLASS",
+        help="a hand-written Client subclass for the root client to extend, which owns auth "
+        "(e.g. myapi.auth:MyAuth); the spec's security schemes are then not generated",
     )
     generate.add_argument(
         "--no-format",

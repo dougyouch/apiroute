@@ -94,6 +94,7 @@ class OpenApiReader:
             parameters=parameters,
             body=self._body(operation.get("requestBody"), hint),
             deprecated=bool(operation.get("deprecated")),
+            operation_id=operation.get("operationId", ""),
         )
         self._response(result, operation.get("responses", {}), hint)
         return result

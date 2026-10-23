@@ -72,3 +72,24 @@ async def test_async_calls_run_the_hooks(api, recorder):
         pass
     assert recorder.requests[0].headers["X-Signature"] == "sig:https://x.test/things"
     assert len(api.seen) == 2
+
+
+def test_hooks_see_the_operation_name(transport, recorder):
+    seen = []
+
+    class Named(Client):
+        base_url = "https://x.test"
+
+        def on_request(self, request):
+            seen.append(request.operation)
+
+        @route("/things", operation="listThings")
+        def list_things(self): ...
+
+        @route("/other")
+        def get_other(self): ...
+
+    api = Named(transport=transport)
+    api.list_things()
+    api.get_other()
+    assert seen == ["listThings", "get_other"]
