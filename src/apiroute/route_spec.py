@@ -12,3 +12,4 @@ class RouteSpec(NamedTuple):
     returns: str
     timeout: float | None
     stream: str | None = None
+    model: Any = None

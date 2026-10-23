@@ -2,7 +2,7 @@
 
 Build API clients declaratively: one `@route` per endpoint, safe defaults, [httpx](https://www.python-httpx.org/) underneath. A Python port of the Ruby gem [client-api-builder](https://github.com/dougyouch/client-api-builder).
 
-> Status: v0.2 in development. Sync and async calls, streaming and response hooks work; typed returns are planned.
+> Status: pre-1.0. Sync and async calls, streaming, hooks and typed returns work.
 
 ## Quick start
 
@@ -69,6 +69,7 @@ Give the method a keyword-only parameter annotated `Result` and its body runs af
 def get_login(self, username: str, *, data: Result) -> str:
     return data["login"]
 
+
 gh.get_login("octocat")  # "octocat"
 ```
 
@@ -84,14 +85,35 @@ gh.get_login("octocat")  # "octocat"
 @route("/files/{id}", stream="file")
 def download(self, id: int, file: str): ...
 
-with gh.get_events() as events:   # stream="iter"; the with block closes the connection
-    for chunk in events: ...
+
+with gh.get_events() as events:  # stream="iter"; the with block closes the connection
+    for chunk in events:
+        ...
 ```
 
 - The status is checked before any of the body is read. An error response raises `UnexpectedResponse` with its body readable, and nothing is written: an existing file is left untouched.
 - File paths with a null byte or a `..` segment are rejected before the request is sent, as in the Ruby gem. Absolute paths are allowed.
 - Opening the stream is retried like any request; a failure while the body is being read is raised, not retried.
 - In async calls, an `io` object whose `write` returns an awaitable (such as an aiofiles file) is awaited.
+
+### Typed returns
+
+A return annotation that contains a dataclass or a pydantic model converts the JSON response. That includes `-> User`, `-> list[User]`, `-> dict[str, User]` and `-> User | None`. Routes without a `def` take `model=` instead. Plain annotations (`dict`, `list`, `Any`) leave the JSON as parsed.
+
+```python
+@route("/users/{username}")
+def get_user(self, username: str) -> User: ...
+
+
+list_users = route("/users", model=list[User])
+```
+
+- **Pydantic models** are validated with pydantic's `TypeAdapter`, with its usual type coercion. Install it with `pip install apiroute[pydantic]`.
+- **Dataclasses** are built by apiroute itself, so they don't need pydantic. Keys the dataclass doesn't declare are ignored, and a missing required field fails.
+- **Errors.** A body that doesn't fit raises `ResponseValidationError`, which carries the `.response` and the underlying `.error`.
+- **With a response hook,** the `Result` parameter's type is used (`user: Annotated[User, Result()]`). The return annotation then describes what the hook returns.
+- **Late-defined types.** A model defined below the client class (`-> "Team"`) is looked up on the first call.
+- **Other return modes.** Only JSON is converted; `returns="text"`, `"bytes"`, `"response"` and streams are left alone.
 
 ### Routes without a `def`
 
@@ -142,7 +164,26 @@ client.with_options(body={"notify": None, "source": "import"}).create_user("Ann"
 | `body_format` | `"json"`, `"form"` or `callable(client, data)` |
 | `query_format` | `"flat"`, `"nested"` (`a[b]=1`) or `callable(client, data)` returning pairs |
 
-Override `should_retry(self, error, attempt)` to change what is retried. By default that's httpx timeouts, network errors and protocol errors. Override `escape_path(self, value)` to change how path values are escaped.
+### Methods to override
+
+| Method | Runs | Default |
+| --- | --- | --- |
+| `on_request(self, request)` | before every attempt, sync or async; may return a changed `RequestSpec` | sends the request as is |
+| `on_response(self, request, response, elapsed)` | after every response, whatever its status; for streams, before the body is read | nothing |
+| `should_retry(self, error, attempt)` | when an attempt fails | retries httpx timeouts, network and protocol errors |
+| `escape_path(self, value)` | for every path value | percent-encodes everything but `A-Z a-z 0-9 - . _ ~` |
+
+```python
+class SignedApi(Client):
+    def on_request(self, request):
+        signature = hmac.new(self.secret, request.url.encode(), "sha256").hexdigest()
+        return dataclasses.replace(request, headers={**request.headers, "X-Signature": signature})
+
+    def on_response(self, request, response, elapsed):
+        metrics.timing("api.request", elapsed, tags=[f"status:{response.status_code}"])
+```
+
+Network errors don't reach `on_response`; every failed attempt is logged on the `apiroute` logger, with the route, the attempt number and the error.
 
 ## Transports: how requests are sent
 

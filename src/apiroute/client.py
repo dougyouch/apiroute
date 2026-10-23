@@ -8,6 +8,7 @@ import httpx
 
 from apiroute.base_url_validator import validate_base_url
 from apiroute.client_config import ClientConfig
+from apiroute.request_spec import RequestSpec
 from apiroute.router import Router
 from apiroute.transport_configuration import ASYNC_TRANSPORTS, TRANSPORTS, is_async_transport
 from apiroute.transports.async_transport import AsyncTransport
@@ -54,6 +55,16 @@ class Client(Router):
     def should_retry(self, error: Exception, attempt: int) -> bool:
         """Override to retry other errors, e.g. an UnexpectedResponse with status 503."""
         return isinstance(error, RETRYABLE_ERRORS)
+
+    def on_request(self, request: RequestSpec) -> RequestSpec | None:
+        """Runs before every attempt, sync or async. Return a changed request, e.g. one with a
+        signature header added through dataclasses.replace, or None to send it as is."""
+        return None
+
+    def on_response(self, request: RequestSpec, response: httpx.Response, elapsed: float) -> None:
+        """Runs after every response, whatever its status, with the seconds it took; for a
+        stream, once the status is in and before the body is read. Use it for metrics or
+        logging. Network errors don't reach it; they are logged by the retry policy."""
 
     def escape_path(self, value: Any) -> str:
         """Every path value is escaped so it stays one segment; override to allow '/'."""

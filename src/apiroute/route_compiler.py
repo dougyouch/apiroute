@@ -1,11 +1,14 @@
 import inspect
 from collections.abc import Callable
-from typing import Annotated, Any, get_origin
+from typing import Annotated, Any, NamedTuple, get_origin
 
 from apiroute.argument_targets import ArgumentTarget
+from apiroute.deferred_converter import DeferredConverter
 from apiroute.http_method import infer_http_method, normalize_http_method
+from apiroute.model_types import strip_annotated
 from apiroute.path_template import PathTemplate
 from apiroute.request_options import RETURN_MODES
+from apiroute.response_converter import converter_for
 from apiroute.result import Result
 from apiroute.route_definition import ArgumentBinding, RouteDefinition
 from apiroute.route_definition_error import RouteDefinitionError
@@ -60,6 +63,7 @@ class RouteCompiler:
             result_param=result_param,
             stream=self._spec.stream,
             stream_param=stream_param,
+            converter=self._converter(signature, result_param),
         )
 
     def _http_method(self) -> str:
@@ -150,6 +154,30 @@ class RouteCompiler:
             raise TypeError(f"stream={self._spec.stream!r} needs a {name!r} parameter")
         return name
 
+    def _converter(self, signature: inspect.Signature, result_param: str | None) -> Any:
+        model = self._model(signature, result_param)
+        if isinstance(model, _Unresolved):
+            return DeferredConverter(model.annotation, getattr(self._func, "__globals__", {}))
+        return converter_for(model)
+
+    def _model(self, signature: inspect.Signature, result_param: str | None) -> Any:
+        """model=, else the Result parameter's type (the return annotation then describes the
+        hook's value), else the return annotation. Only JSON responses are converted."""
+        if self._spec.model is not None:
+            if self._spec.returns != "json" or self._spec.stream is not None:
+                raise ValueError("model= needs a JSON response (returns='json', no stream)")
+            return self._spec.model
+        if self._spec.returns != "json" or self._spec.stream is not None:
+            return None
+        if result_param is not None:
+            annotation = signature.parameters[result_param].annotation
+        else:
+            annotation = signature.return_annotation
+        evaluated = self._evaluated(annotation)
+        if evaluated is None and isinstance(annotation, str):
+            return _Unresolved(annotation)
+        return strip_annotated(evaluated)
+
     def _expected(self) -> frozenset[int] | None:
         expected = self._spec.expected
         if expected is None:
@@ -162,6 +190,12 @@ class RouteCompiler:
         if self._spec.returns not in RETURN_MODES:
             raise ValueError(f"returns must be one of {RETURN_MODES}")
         return self._spec.returns
+
+
+class _Unresolved(NamedTuple):
+    """A string annotation that names something not defined yet."""
+
+    annotation: str
 
 
 def _names(template: ValueTemplate | None) -> frozenset[str]:

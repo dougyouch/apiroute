@@ -4,6 +4,8 @@ from apiroute.api_route_error import ApiRouteError
 from apiroute.argument_targets import Body, Header, Query
 from apiroute.client import Client
 from apiroute.from_client import FROM_CLIENT
+from apiroute.request_spec import RequestSpec
+from apiroute.response_validation_error import ResponseValidationError
 from apiroute.result import Result
 from apiroute.retries import Retries
 from apiroute.route import route
@@ -37,6 +39,8 @@ __all__ = [
     "OneShotTransport",
     "PooledTransport",
     "Query",
+    "RequestSpec",
+    "ResponseValidationError",
     "Result",
     "Retries",
     "RouteDefinitionError",

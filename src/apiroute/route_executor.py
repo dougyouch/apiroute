@@ -1,3 +1,4 @@
+import time
 from collections.abc import Mapping
 from dataclasses import replace
 from typing import Any
@@ -34,10 +35,10 @@ class RouteExecutor:
         transport = self._root._http_transport()
         runner = RetryRunner(policy, self._root._sleep)
         if self._definition.stream is None:
-            return runner.run(lambda: self._read(transport.send(spec)))
+            return runner.run(lambda: self._read(self._send(transport, spec)))
         # Only opening the stream is retried; once the body starts, a failure is raised
         stream = self._stream_reader(values)
-        response, stack = runner.run(lambda: self._opened(stream.open(transport, spec)))
+        response, stack = runner.run(lambda: self._open(stream, transport, spec))
         return stream.consume(response, stack)
 
     async def execute_async(self, values: Mapping[str, Any]) -> Any:
@@ -47,13 +48,19 @@ class RouteExecutor:
         if self._definition.stream is None:
 
             async def attempt() -> Any:
-                return self._read(await transport.send(spec))
+                hooked = self._before(spec)
+                started = time.perf_counter()
+                return self._read(self._after(hooked, await transport.send(hooked), started))
 
             return await runner.run(attempt)
         stream = self._stream_reader(values)
 
         async def open_stream() -> Any:
-            return self._opened(await stream.open_async(transport, spec))
+            hooked = self._before(spec)
+            started = time.perf_counter()
+            opened = await stream.open_async(transport, hooked)
+            self._after(hooked, opened[0], started)
+            return opened
 
         response, stack = await runner.run(open_stream)
         return await stream.consume_async(response, stack)
@@ -65,20 +72,37 @@ class RouteExecutor:
         return spec, policy
 
     def _read(self, response: httpx.Response) -> Any:
-        self._root.last_response = response
         return self._response_reader().read(response)
 
     def _response_reader(self) -> ResponseReader:
-        returns = self._options.returns or self._definition.returns
-        return ResponseReader(self._definition.name, self._definition.expected, returns)
+        definition = self._definition
+        returns = self._options.returns or definition.returns
+        return ResponseReader(definition.name, definition.expected, returns, definition.converter)
 
     def _stream_reader(self, values: Mapping[str, Any]) -> StreamReader:
         destination = values.get(self._definition.stream_param)
         return StreamReader(self._response_reader(), self._definition.stream, destination)
 
-    def _opened(self, opened: tuple[httpx.Response, Any]) -> tuple[httpx.Response, Any]:
-        self._root.last_response = opened[0]
+    def _send(self, transport: Any, spec: RequestSpec) -> httpx.Response:
+        hooked = self._before(spec)
+        started = time.perf_counter()
+        return self._after(hooked, transport.send(hooked), started)
+
+    def _open(self, stream: StreamReader, transport: Any, spec: RequestSpec) -> Any:
+        hooked = self._before(spec)
+        started = time.perf_counter()
+        opened = stream.open(transport, hooked)
+        self._after(hooked, opened[0], started)
         return opened
+
+    def _before(self, spec: RequestSpec) -> RequestSpec:
+        """Runs the client's on_request, which may return a changed request (e.g. signed)."""
+        return self._root.on_request(spec) or spec
+
+    def _after(self, spec: RequestSpec, response: httpx.Response, started: float) -> Any:
+        self._root.last_response = response
+        self._root.on_response(spec, response, time.perf_counter() - started)
+        return response
 
     def _retries(self, config: ClientConfig) -> Retries:
         retries = self._options.retries

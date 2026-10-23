@@ -1,6 +1,6 @@
 import inspect
 from dataclasses import dataclass
-from typing import NamedTuple
+from typing import Any, NamedTuple
 
 from apiroute.path_template import PathTemplate
 from apiroute.value_template import ValueTemplate
@@ -36,6 +36,8 @@ class RouteDefinition:
     # "file", "io" or "iter" for streaming routes, and the parameter holding the destination
     stream: str | None = None
     stream_param: str | None = None
+    # Turns parsed JSON into the route's model type; None returns the JSON as parsed
+    converter: Any = None
 
     @property
     def call_signature(self) -> inspect.Signature:

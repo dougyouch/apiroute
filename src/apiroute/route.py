@@ -12,6 +12,7 @@ def route(
     returns: str = "json",
     timeout: float | None = None,
     stream: str | None = None,
+    model: Any = None,
 ) -> RouteDecorator:
     """Declares an endpoint, on a def or on its own:
 
@@ -23,9 +24,11 @@ def route(
     Without a method, it is inferred from the route's name (create_user is a POST).
     stream="file" writes the body to the path in a `file` parameter, stream="io" to the
     writable object in an `io` parameter, and stream="iter" returns the chunks.
+    model converts the JSON response (a pydantic model or dataclass, or a list of them);
+    on a def, the return annotation does the same.
     """
     method, path = _split(method_and_path)
-    spec = RouteSpec(method, path, query, body, expected, returns, timeout, stream)
+    spec = RouteSpec(method, path, query, body, expected, returns, timeout, stream, model)
     return RouteDecorator(spec)
 
 
