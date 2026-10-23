@@ -248,6 +248,9 @@ The first three derive from `ApiRouteError`. `client.last_response` holds the mo
 | `on_response(self, request, response, elapsed)` | after every response, whatever its status; for streams, before the body is read | nothing |
 | `should_retry(self, error, attempt)` | when an attempt fails | retries httpx timeouts, network and protocol errors |
 | `escape_path(self, value)` | for every path value | percent-encodes everything but `A-Z a-z 0-9 - . _ ~` |
+| `soap_header(self, operation)` | when building a SOAP envelope; returns a dict for its Header | no Header |
+
+`request.operation` names the call: the route's `operation=` (generated clients set it to the spec's `operationId` or WSDL operation name), else the method name. It's useful for logging, metrics and APIs that want the call name in the request.
 
 ```python
 class SignedApi(Client):
@@ -372,6 +375,22 @@ gh/
 Nothing is imported until it's used. On GitHub's spec (1,242 operations, 4,035 models), constructing the client takes 0.6 ms, a dict call about 3 ms all in, and the first typed call costs pydantic's own import plus a few milliseconds for the models it returns.
 
 - **Your code goes outside the package.** Subclass the client to add behaviour, such as auth a spec doesn't declare (above); headers merge down subclasses. Regenerating removes only files the generator wrote, and refuses to write into a directory it didn't create.
+- **Auth can live in a hand-written base class.** `--base-class mypackage.auth:MyAuth` makes the generated root client extend `MyAuth` (a `Client` subclass) instead of `Client`, and leaves out the spec's security schemes. The base class owns credentials, through `headers`, `query_params`, `on_request` or, for SOAP, `soap_header`, and regenerating never touches it:
+
+  ```python
+  class TradingAuth(Client):  # eBay Trading: credentials in the SOAP header, call name in the query
+      def __init__(self, token: str, **kwargs):
+          super().__init__(**kwargs)
+          self.token = token
+
+      def soap_header(self, operation):
+          return {"RequesterCredentials": {"eBayAuthToken": self.token}}
+
+      def on_request(self, request):
+          return dataclasses.replace(
+              request, params=[*request.params, ("callname", request.operation)]
+          )
+  ```
 - **Output passes `ruff check` and `ruff format`.** When ruff is installed, the generator runs it over the output; `--no-format` skips that.
 - **OpenAPI:** tags become sections, `operationId`s become method names, and path, query and header parameters become arguments. Bodies can be JSON, form or multipart; responses can be JSON, text or binary. Schemas become models, with `allOf` merged, `oneOf`/`anyOf` as unions and enums as `Literal`. Bearer, basic and API key auth become constructor arguments.
 - **WSDL:** each operation becomes a POST route with its `SOAPAction`. Bodies are dicts in the xmltodict shape: child elements as keys, `"@attr"` for attributes, `"#text"` for text content, and `"{namespace}local"` for an element from another namespace. Faults raise `apiroute.soap.SoapFault`. XML is parsed with `defusedxml`.

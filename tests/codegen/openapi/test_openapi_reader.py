@@ -78,3 +78,21 @@ def test_swagger2():
     assert update_user.body.type.expr == "User"
     assert upload.body.body_format == "multipart"
     assert definition.auth[0].style == "basic"
+
+
+def test_content_type_accept_and_authorization_parameters_are_skipped(tmp_path):
+    spec = (
+        (FIXTURES / "shop.yaml")
+        .read_text()
+        .replace(
+            "        - {name: X-Request-Id, in: header, schema: {type: string}}",
+            "        - {name: X-Request-Id, in: header, schema: {type: string}}\n"
+            "        - {name: Content-Type, in: header, required: true, schema: {type: string}}\n"
+            "        - {name: authorization, in: header, required: true, schema: {type: string}}",
+        )
+    )
+    (tmp_path / "shop.yaml").write_text(spec)
+    (tmp_path / "common.yaml").write_text((FIXTURES / "common.yaml").read_text())
+    definition = OpenApiReader(str(tmp_path / "shop.yaml"), "ShopApi").read()
+    list_pets = definition.groups[0].operations[0]
+    assert [p.wire_name for p in list_pets.parameters] == ["limit", "status", "X-Request-Id"]

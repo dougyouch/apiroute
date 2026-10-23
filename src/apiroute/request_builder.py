@@ -33,6 +33,7 @@ class RequestBuilder:
             params=self._params(definition, values, resolve),
             content=content,
             timeout=self._timeout(definition),
+            operation=definition.operation or definition.name,
         )
 
     def _url(self, definition: RouteDefinition, resolve: PlaceholderResolver) -> str:
@@ -85,9 +86,10 @@ class RequestBuilder:
         data = self._route_body(definition, values, resolve)
         if self._options.body is not None:
             data = _merge_body(data, self._options.body)
-        if data is None:
-            return None, None
         body_format = definition.body_format or self._config.body_format
+        # a format may need a body even when there's no data: a SOAP envelope always is one
+        if data is None and not getattr(body_format, "encodes_empty", False):
+            return None, None
         return BodyEncoder(body_format).encode(self._root, data)
 
     def _route_body(

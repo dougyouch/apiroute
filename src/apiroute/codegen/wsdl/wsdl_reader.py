@@ -94,6 +94,7 @@ class WsdlReader:
             response=response,
             response_plain=_plain(response) if output_element else "None",
             headers={"SOAPAction": f'"{action}"'} if version == "1.1" else {},
+            operation_id=name,
             soap=SoapOperation(
                 element=input_element[1],
                 namespace=input_element[0],

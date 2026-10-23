@@ -16,3 +16,4 @@ class RouteSpec(NamedTuple):
     headers: Any = None
     body_format: Any = None
     decoder: Any = None
+    operation: str | None = None

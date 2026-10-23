@@ -11,3 +11,6 @@ class RequestSpec:
     params: list[tuple[str, str]]
     content: bytes | str | None
     timeout: float | None
+    # The API's own name for the operation (an OpenAPI operationId, a WSDL operation), else
+    # the route's method name: for on_request/on_response, e.g. to add eBay's callname
+    operation: str = ""

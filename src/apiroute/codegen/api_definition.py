@@ -51,6 +51,7 @@ class Operation:
     headers: dict[str, str] = field(default_factory=dict)  # fixed headers, e.g. SOAPAction
     deprecated: bool = False
     soap: SoapOperation | None = None
+    operation_id: str = ""  # the spec's name for it: an operationId or a WSDL operation
 
 
 @dataclass
@@ -107,3 +108,6 @@ class ApiDefinition:
     groups: list[Group] = field(default_factory=list)
     models: dict[str, Model] = field(default_factory=dict)
     auth: list[AuthScheme] = field(default_factory=list)
+    # "package.module:Class", a hand-written Client subclass the root client extends instead
+    # of Client; it owns auth, so the spec's security schemes aren't generated
+    base_class: str | None = None

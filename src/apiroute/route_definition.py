@@ -41,6 +41,7 @@ class RouteDefinition:
     headers: ValueTemplate | None = None
     body_format: Any = None
     decoder: Any = None
+    operation: str | None = None
 
     @property
     def call_signature(self) -> inspect.Signature:
