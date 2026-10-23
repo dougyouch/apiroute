@@ -56,6 +56,9 @@ class DictClientEmitter:
         names = [n for n in ("Header", "Query", "lazy", "route") if _mentions(body, n)]
         names.append("Client" if self._is_root else "Section")
         out.line(f"from apiroute import {import_names(names)}")
+        soap = [n for n in ("SoapBody", "SoapDecoder") if _mentions(body, n)]
+        if soap:
+            out.line(f"from apiroute.soap import {import_names(soap)}")
 
     def _body_text(self) -> str:
         out = SourceWriter()
@@ -142,11 +145,25 @@ def _route_arguments(operation: Operation) -> list[str]:
     arguments = [py_str(operation.method), py_str(operation.path)]
     if operation.returns != "json":
         arguments.append(f"returns={py_str(operation.returns)}")
-    if operation.body is not None and operation.body.body_format != "json":
+    if operation.soap is not None:
+        arguments += _soap_arguments(operation)
+    elif operation.body is not None and operation.body.body_format != "json":
         arguments.append(f"body_format={py_str(operation.body.body_format)}")
     if operation.headers:
         arguments.append(f"headers={py_value(operation.headers)}")
     return arguments
+
+
+def _soap_arguments(operation: Operation) -> list[str]:
+    """A SOAP fault comes back as HTTP 500; accepting it lets the decoder raise SoapFault."""
+    soap = operation.soap
+    body = [py_str(soap.element), py_str(soap.namespace), py_str(soap.version)]
+    if not soap.qualified:
+        body.append("qualified=False")
+    if soap.version == "1.2" and soap.action:
+        body.append(f"action={py_str(soap.action)}")
+    decoder = f"SoapDecoder({py_str(soap.response_namespace)}, {py_str(soap.version)})"
+    return [f"body_format=SoapBody({', '.join(body)})", f"decoder={decoder}", "expected=(200, 500)"]
 
 
 def _ordered(operation: Operation, inliner: AliasInliner) -> list[str]:

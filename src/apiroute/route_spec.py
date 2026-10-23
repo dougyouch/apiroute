@@ -15,3 +15,4 @@ class RouteSpec(NamedTuple):
     model: Any = None
     headers: Any = None
     body_format: Any = None
+    decoder: Any = None

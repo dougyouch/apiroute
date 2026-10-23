@@ -1,0 +1,114 @@
+<?xml version="1.0" encoding="utf-8"?>
+<wsdl:definitions name="WeatherService"
+    targetNamespace="http://weather.test/ws"
+    xmlns:wsdl="http://schemas.xmlsoap.org/wsdl/"
+    xmlns:soap="http://schemas.xmlsoap.org/wsdl/soap/"
+    xmlns:soap12="http://schemas.xmlsoap.org/wsdl/soap12/"
+    xmlns:xs="http://www.w3.org/2001/XMLSchema"
+    xmlns:tns="http://weather.test/ws"
+    xmlns:geo="http://weather.test/geo">
+  <wsdl:types>
+    <xs:schema targetNamespace="http://weather.test/ws" elementFormDefault="qualified">
+      <xs:import namespace="http://weather.test/geo" schemaLocation="geo.xsd"/>
+      <xs:simpleType name="Units">
+        <xs:restriction base="xs:string">
+          <xs:enumeration value="metric"/>
+          <xs:enumeration value="imperial"/>
+        </xs:restriction>
+      </xs:simpleType>
+      <xs:complexType name="Reading">
+        <xs:sequence>
+          <xs:element name="Hour" type="xs:int"/>
+          <xs:element name="Temperature" type="tns:Measure"/>
+        </xs:sequence>
+      </xs:complexType>
+      <xs:complexType name="Measure">
+        <xs:simpleContent>
+          <xs:extension base="xs:decimal">
+            <xs:attribute name="unit" type="xs:string" use="required"/>
+          </xs:extension>
+        </xs:simpleContent>
+      </xs:complexType>
+      <xs:complexType name="Forecast">
+        <xs:complexContent>
+          <xs:extension base="geo:Place">
+            <xs:sequence>
+              <xs:element name="Summary" type="xs:string" minOccurs="0"/>
+              <xs:element name="Reading" type="tns:Reading" maxOccurs="unbounded"/>
+            </xs:sequence>
+            <xs:attribute name="units" type="tns:Units"/>
+          </xs:extension>
+        </xs:complexContent>
+      </xs:complexType>
+      <xs:element name="GetForecast">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="City" type="xs:string"/>
+            <xs:element name="Days" type="xs:int" minOccurs="0"/>
+          </xs:sequence>
+          <xs:attribute name="units" type="tns:Units"/>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="GetForecastResponse">
+        <xs:complexType>
+          <xs:sequence>
+            <xs:element name="Forecast" type="tns:Forecast"/>
+          </xs:sequence>
+        </xs:complexType>
+      </xs:element>
+      <xs:element name="Ping">
+        <xs:complexType><xs:sequence/></xs:complexType>
+      </xs:element>
+      <xs:element name="PingResponse" type="xs:string"/>
+    </xs:schema>
+  </wsdl:types>
+  <wsdl:message name="GetForecastIn"><wsdl:part name="parameters" element="tns:GetForecast"/></wsdl:message>
+  <wsdl:message name="GetForecastOut"><wsdl:part name="parameters" element="tns:GetForecastResponse"/></wsdl:message>
+  <wsdl:message name="PingIn"><wsdl:part name="parameters" element="tns:Ping"/></wsdl:message>
+  <wsdl:message name="PingOut"><wsdl:part name="parameters" element="tns:PingResponse"/></wsdl:message>
+  <wsdl:portType name="WeatherPort">
+    <wsdl:operation name="GetForecast">
+      <wsdl:documentation>The forecast for a city.</wsdl:documentation>
+      <wsdl:input message="tns:GetForecastIn"/>
+      <wsdl:output message="tns:GetForecastOut"/>
+    </wsdl:operation>
+    <wsdl:operation name="Ping">
+      <wsdl:input message="tns:PingIn"/>
+      <wsdl:output message="tns:PingOut"/>
+    </wsdl:operation>
+  </wsdl:portType>
+  <wsdl:binding name="WeatherSoap12" type="tns:WeatherPort">
+    <soap12:binding transport="http://schemas.xmlsoap.org/soap/http" style="document"/>
+    <wsdl:operation name="GetForecast">
+      <soap12:operation soapAction="http://weather.test/ws/GetForecast"/>
+      <wsdl:input><soap12:body use="literal"/></wsdl:input>
+      <wsdl:output><soap12:body use="literal"/></wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="Ping">
+      <soap12:operation soapAction="http://weather.test/ws/Ping"/>
+      <wsdl:input><soap12:body use="literal"/></wsdl:input>
+      <wsdl:output><soap12:body use="literal"/></wsdl:output>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:binding name="WeatherSoap" type="tns:WeatherPort">
+    <soap:binding transport="http://schemas.xmlsoap.org/soap/http" style="document"/>
+    <wsdl:operation name="GetForecast">
+      <soap:operation soapAction="http://weather.test/ws/GetForecast"/>
+      <wsdl:input><soap:body use="literal"/></wsdl:input>
+      <wsdl:output><soap:body use="literal"/></wsdl:output>
+    </wsdl:operation>
+    <wsdl:operation name="Ping">
+      <soap:operation soapAction="http://weather.test/ws/Ping"/>
+      <wsdl:input><soap:body use="literal"/></wsdl:input>
+      <wsdl:output><soap:body use="literal"/></wsdl:output>
+    </wsdl:operation>
+  </wsdl:binding>
+  <wsdl:service name="WeatherService">
+    <wsdl:port name="WeatherSoap12" binding="tns:WeatherSoap12">
+      <soap12:address location="https://weather.test/soap12"/>
+    </wsdl:port>
+    <wsdl:port name="WeatherSoap" binding="tns:WeatherSoap">
+      <soap:address location="https://weather.test/soap"/>
+    </wsdl:port>
+  </wsdl:service>
+</wsdl:definitions>

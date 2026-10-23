@@ -42,6 +42,9 @@ codegen = [
 pydantic = [
     { name = "pydantic" },
 ]
+soap = [
+    { name = "defusedxml" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -55,12 +58,13 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "defusedxml", marker = "extra == 'codegen'", specifier = ">=0.7" },
+    { name = "defusedxml", marker = "extra == 'soap'", specifier = ">=0.7" },
     { name = "httpx", specifier = ">=0.27" },
     { name = "pydantic", marker = "extra == 'codegen'", specifier = ">=2" },
     { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2" },
     { name = "pyyaml", marker = "extra == 'codegen'", specifier = ">=6" },
 ]
-provides-extras = ["pydantic", "codegen"]
+provides-extras = ["pydantic", "soap", "codegen"]
 
 [package.metadata.requires-dev]
 dev = [

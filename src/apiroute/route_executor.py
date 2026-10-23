@@ -77,7 +77,9 @@ class RouteExecutor:
     def _response_reader(self) -> ResponseReader:
         definition = self._definition
         returns = self._options.returns or definition.returns
-        return ResponseReader(definition.name, definition.expected, returns, definition.converter)
+        return ResponseReader(
+            definition.name, definition.expected, returns, definition.converter, definition.decoder
+        )
 
     def _stream_reader(self, values: Mapping[str, Any]) -> StreamReader:
         destination = values.get(self._definition.stream_param)

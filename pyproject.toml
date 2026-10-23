@@ -35,6 +35,9 @@ Changelog = "https://github.com/dougyouch/apiroute/blob/main/CHANGELOG.md"
 pydantic = [
     "pydantic>=2",
 ]
+soap = [
+    "defusedxml>=0.7",
+]
 codegen = [
     "defusedxml>=0.7",
     "pydantic>=2",

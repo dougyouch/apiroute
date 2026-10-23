@@ -68,6 +68,7 @@ class RouteCompiler:
             converter=self._converter(signature, result_param),
             headers=headers,
             body_format=self._body_format(),
+            decoder=self._spec.decoder,
         )
 
     def _signature(self) -> inspect.Signature:

@@ -40,14 +40,18 @@ class SchemaModuleEmitter:
         out.line()
         out.line("from __future__ import annotations")
         sections = []
-        typing_names = [n for n in ("Any", "Literal") if self._uses(n)]
+        typing_names = [n for n in ("Annotated", "Any", "Literal") if self._uses(n)]
         if typing_names:
             sections.append([f"from typing import {import_names(typing_names)}"])
         pydantic_names = ["BaseModel", "ConfigDict"] if self._classes() else []
         if any(field.alias for model in self._classes() for field in model.fields):
             pydantic_names.append("Field")
+        if self._uses("BeforeValidator"):
+            pydantic_names.append("BeforeValidator")
         if pydantic_names:
             sections.append([f"from pydantic import {import_names(pydantic_names)}"])
+        if self._uses("as_list"):
+            sections.append(["from apiroute.soap import as_list"])
         dependencies = self._dependency_imports()
         if dependencies:
             sections.append(dependencies)
@@ -77,7 +81,7 @@ class SchemaModuleEmitter:
     def _uses(self, name: str) -> bool:
         exprs = [m.alias_of.expr for m in self._models() if m.alias_of is not None]
         exprs += [f.type.expr for m in self._models() for f in m.fields]
-        separators = str.maketrans("[],|", "    ")
+        separators = str.maketrans("[],|()", "      ")
         return any(name in expr.translate(separators).split() for expr in exprs)
 
     def _aliases(self) -> list[Model]:

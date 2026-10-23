@@ -24,6 +24,18 @@ class RequestBody:
 
 
 @dataclass
+class SoapOperation:
+    """How a WSDL operation is sent: its input element, envelope version and action."""
+
+    element: str  # the input element's local name
+    namespace: str  # its namespace, which body keys default to
+    version: str  # "1.1" or "1.2"
+    qualified: bool  # the schema's elementFormDefault
+    action: str = ""
+    response_namespace: str = ""
+
+
+@dataclass
 class Operation:
     """One endpoint, as both layers generate it."""
 
@@ -38,6 +50,7 @@ class Operation:
     returns: str = "json"  # "json", "text" or "bytes"
     headers: dict[str, str] = field(default_factory=dict)  # fixed headers, e.g. SOAPAction
     deprecated: bool = False
+    soap: SoapOperation | None = None
 
 
 @dataclass

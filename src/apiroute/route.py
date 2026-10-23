@@ -16,6 +16,7 @@ def route(
     model: Any = None,
     headers: dict[str, Any] | None = None,
     body_format: Any = None,
+    decoder: Any = None,
 ) -> RouteDecorator:
     """Declares an endpoint, on a def or on its own:
 
@@ -30,7 +31,8 @@ def route(
     model converts the JSON response (a pydantic model or dataclass, or a list of them);
     on a def, the return annotation does the same. headers are sent with this route, after
     the class's, and may hold {name} placeholders. body_format ("json", "form", "multipart"
-    or a callable) overrides the class's for this route.
+    or a callable) overrides the class's for this route. decoder, a callable taking the
+    httpx.Response, replaces JSON parsing for returns="json" (SOAP uses it to read envelopes).
     """
     method, path = _split(method_and_path)
     path = current_prefix() + path
@@ -46,6 +48,7 @@ def route(
         model=model,
         headers=headers,
         body_format=body_format,
+        decoder=decoder,
     )
     return RouteDecorator(spec)
 

@@ -10,7 +10,7 @@ class SpecLoader:
     """Loads a JSON or YAML document from a file path or an http(s) URL."""
 
     def load(self, location: str) -> Any:
-        text = self._read(location)
+        text = self.read_text(location)
         if location.endswith(".json") or text.lstrip().startswith("{"):
             return json.loads(text)
         return _yaml(text)
@@ -21,7 +21,7 @@ class SpecLoader:
             return urljoin(base, reference)
         return str((Path(base).parent / reference).resolve())
 
-    def _read(self, location: str) -> str:
+    def read_text(self, location: str) -> str:
         if _is_url(location):
             response = httpx.get(location, follow_redirects=True, timeout=30)
             response.raise_for_status()
