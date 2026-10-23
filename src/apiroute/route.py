@@ -11,6 +11,7 @@ def route(
     expected: int | tuple[int, ...] | None = None,
     returns: str = "json",
     timeout: float | None = None,
+    stream: str | None = None,
 ) -> RouteDecorator:
     """Declares an endpoint, on a def or on its own:
 
@@ -20,9 +21,12 @@ def route(
         get_user = route("/users/:id")  # generates get_user(self, *, id)
 
     Without a method, it is inferred from the route's name (create_user is a POST).
+    stream="file" writes the body to the path in a `file` parameter, stream="io" to the
+    writable object in an `io` parameter, and stream="iter" returns the chunks.
     """
     method, path = _split(method_and_path)
-    return RouteDecorator(RouteSpec(method, path, query, body, expected, returns, timeout))
+    spec = RouteSpec(method, path, query, body, expected, returns, timeout, stream)
+    return RouteDecorator(spec)
 
 
 def _split(method_and_path: tuple[str, ...]) -> tuple[str | None, str]:

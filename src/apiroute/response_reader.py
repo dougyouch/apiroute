@@ -14,11 +14,14 @@ class ResponseReader:
         self._returns = returns
 
     def read(self, response: httpx.Response) -> Any:
-        if not self._is_expected(response.status_code):
-            raise UnexpectedResponse(self._route_name, response)
+        self.check_status(response)
         return self._extract(response)
 
-    def _is_expected(self, status_code: int) -> bool:
+    def check_status(self, response: httpx.Response) -> None:
+        if not self.is_expected(response.status_code):
+            raise UnexpectedResponse(self._route_name, response)
+
+    def is_expected(self, status_code: int) -> bool:
         if self._expected is None:
             return 200 <= status_code < 300
         return status_code in self._expected

@@ -5,6 +5,7 @@ from typing import Any
 from apiroute.from_client import FROM_CLIENT
 from apiroute.http_method import infer_http_method, normalize_http_method
 from apiroute.path_template import PathTemplate
+from apiroute.route_compiler import STREAM_PARAMS
 from apiroute.route_definition_error import RouteDefinitionError
 from apiroute.route_spec import RouteSpec
 from apiroute.value_template import ValueTemplate
@@ -19,7 +20,8 @@ class GeneratedSignature:
     Every placeholder becomes a keyword-only parameter, in path, query, body order. One the
     class declares (a class attribute, method, property or annotation such as `org: str`)
     is optional and falls back to the client's value. A POST, PUT or PATCH route without a
-    body template also takes an optional `body`.
+    body template also takes an optional `body`, and a stream="file" or "io" route a
+    required `file` or `io`.
     """
 
     def __init__(self, owner: type, name: str, spec: RouteSpec):
@@ -39,6 +41,9 @@ class GeneratedSignature:
         parameters += [self._parameter(name) for name in self._placeholder_names()]
         if self._takes_body():
             parameters.append(inspect.Parameter("body", _KEYWORD_ONLY, default=None))
+        stream_param = STREAM_PARAMS.get(self._spec.stream)
+        if stream_param is not None:
+            parameters.append(inspect.Parameter(stream_param, _KEYWORD_ONLY))
         return inspect.Signature(parameters)
 
     def _placeholder_names(self) -> list[str]:

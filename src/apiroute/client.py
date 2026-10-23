@@ -1,3 +1,4 @@
+import asyncio
 import time
 from dataclasses import replace
 from typing import Any
@@ -8,7 +9,8 @@ import httpx
 from apiroute.base_url_validator import validate_base_url
 from apiroute.client_config import ClientConfig
 from apiroute.router import Router
-from apiroute.transport_configuration import TRANSPORTS
+from apiroute.transport_configuration import ASYNC_TRANSPORTS, TRANSPORTS, is_async_transport
+from apiroute.transports.async_transport import AsyncTransport
 from apiroute.transports.transport import Transport
 
 # Network failures worth another attempt; other errors (bad URL, TLS) won't fix themselves
@@ -19,7 +21,8 @@ class Client(Router):
     """Base class for an API client. Configure it with class attributes and @route methods.
 
     The class describes the API only. How requests are sent is a Transport, chosen for the
-    environment with apiroute.use_transport() or, for one instance, the transport argument.
+    environment with apiroute.use_transport() or, for one instance, the transport and
+    async_transport arguments. Async calls go through client.aio.
     """
 
     last_response: httpx.Response | None = None
@@ -27,13 +30,26 @@ class Client(Router):
     # Class-level defaults, so a subclass that skips super().__init__() still works
     _base_url: str | None = None
     _transport: Transport | None = None
+    _async_transport: AsyncTransport | None = None
     _sleep = staticmethod(time.sleep)
+    _async_sleep = staticmethod(asyncio.sleep)
 
-    def __init__(self, *, base_url: str | None = None, transport: Transport | None = None):
+    def __init__(
+        self,
+        *,
+        base_url: str | None = None,
+        transport: Transport | None = None,
+        async_transport: AsyncTransport | None = None,
+    ):
         if base_url is not None:
             validate_base_url(base_url)
+        if transport is not None and is_async_transport(transport):
+            raise TypeError("transport is async; pass it as async_transport")
+        if async_transport is not None and not is_async_transport(async_transport):
+            raise TypeError("async_transport is not async; pass it as transport")
         self._base_url = base_url
         self._transport = transport
+        self._async_transport = async_transport
 
     def should_retry(self, error: Exception, attempt: int) -> bool:
         """Override to retry other errors, e.g. an UnexpectedResponse with status 503."""
@@ -53,3 +69,6 @@ class Client(Router):
 
     def _http_transport(self) -> Transport:
         return self._transport or TRANSPORTS.for_class(type(self))
+
+    def _async_http_transport(self) -> AsyncTransport:
+        return self._async_transport or ASYNC_TRANSPORTS.for_class(type(self))

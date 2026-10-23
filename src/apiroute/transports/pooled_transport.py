@@ -1,5 +1,6 @@
 import os
 import threading
+from contextlib import AbstractContextManager
 from typing import Any
 
 import httpx
@@ -25,6 +26,9 @@ class PooledTransport:
 
     def send(self, spec: RequestSpec) -> httpx.Response:
         return HttpxClientTransport(self._current_client()).send(spec)
+
+    def stream(self, spec: RequestSpec) -> AbstractContextManager[httpx.Response]:
+        return HttpxClientTransport(self._current_client()).stream(spec)
 
     def close(self) -> None:
         with self._lock:

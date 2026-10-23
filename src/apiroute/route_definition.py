@@ -30,3 +30,17 @@ class RouteDefinition:
     returns: str
     timeout: float | None
     signature: inspect.Signature
+    # The keyword-only parameter annotated Result, if any; when set, the method body runs
+    # after the request as a response hook
+    result_param: str | None = None
+    # "file", "io" or "iter" for streaming routes, and the parameter holding the destination
+    stream: str | None = None
+    stream_param: str | None = None
+
+    @property
+    def call_signature(self) -> inspect.Signature:
+        """The signature callers see: the method's, without the Result parameter."""
+        if self.result_param is None:
+            return self.signature
+        parameters = [p for p in self.signature.parameters.values() if p.name != self.result_param]
+        return self.signature.replace(parameters=parameters)

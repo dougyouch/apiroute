@@ -3,8 +3,8 @@ import json
 import httpx
 import pytest
 
-from apiroute import HttpxClientTransport
-from apiroute.transport_configuration import TRANSPORTS
+from apiroute import AsyncHttpxClientTransport, HttpxClientTransport
+from apiroute.transport_configuration import ASYNC_TRANSPORTS, TRANSPORTS
 
 
 class Recorder:
@@ -43,7 +43,18 @@ def transport(recorder) -> HttpxClientTransport:
     return HttpxClientTransport(httpx.Client(transport=httpx.MockTransport(recorder)))
 
 
+@pytest.fixture
+def async_transport(recorder) -> AsyncHttpxClientTransport:
+    return AsyncHttpxClientTransport(httpx.AsyncClient(transport=httpx.MockTransport(recorder)))
+
+
+@pytest.fixture
+def anyio_backend() -> str:
+    return "asyncio"
+
+
 @pytest.fixture(autouse=True)
 def reset_transports():
     yield
     TRANSPORTS.reset()
+    ASYNC_TRANSPORTS.reset()

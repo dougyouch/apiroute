@@ -1,3 +1,5 @@
+from contextlib import AbstractContextManager
+
 import httpx
 
 from apiroute.request_spec import RequestSpec
@@ -13,14 +15,19 @@ class HttpxClientTransport:
         self.http_client = http_client
 
     def send(self, spec: RequestSpec) -> httpx.Response:
-        return self.http_client.request(
-            spec.method,
-            spec.url,
-            headers=spec.headers,
-            params=spec.params,
-            content=spec.content,
-            timeout=spec.timeout,
-        )
+        return self.http_client.request(spec.method, spec.url, **request_arguments(spec))
+
+    def stream(self, spec: RequestSpec) -> AbstractContextManager[httpx.Response]:
+        return self.http_client.stream(spec.method, spec.url, **request_arguments(spec))
 
     def close(self) -> None:
         pass
+
+
+def request_arguments(spec: RequestSpec) -> dict:
+    return {
+        "headers": spec.headers,
+        "params": spec.params,
+        "content": spec.content,
+        "timeout": spec.timeout,
+    }

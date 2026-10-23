@@ -1,3 +1,4 @@
+from contextlib import AbstractContextManager
 from typing import Protocol
 
 import httpx
@@ -13,5 +14,9 @@ class Transport(Protocol):
     """
 
     def send(self, spec: RequestSpec) -> httpx.Response: ...
+
+    def stream(self, spec: RequestSpec) -> AbstractContextManager[httpx.Response]:
+        """The response with its body unread, for streaming routes."""
+        ...
 
     def close(self) -> None: ...

@@ -1,3 +1,5 @@
+from collections.abc import Iterator
+from contextlib import contextmanager
 from typing import Any
 
 import httpx
@@ -20,6 +22,13 @@ class OneShotTransport:
     def send(self, spec: RequestSpec) -> httpx.Response:
         with self._factory.new_client() as http_client:
             return HttpxClientTransport(http_client).send(spec)
+
+    @contextmanager
+    def stream(self, spec: RequestSpec) -> Iterator[httpx.Response]:
+        """The connection stays open until the streamed body is done with."""
+        with self._factory.new_client() as http_client:
+            with HttpxClientTransport(http_client).stream(spec) as response:
+                yield response
 
     def close(self) -> None:
         pass

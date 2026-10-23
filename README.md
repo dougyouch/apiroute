@@ -2,7 +2,7 @@
 
 Build API clients declaratively: one `@route` per endpoint, safe defaults, [httpx](https://www.python-httpx.org/) underneath. A Python port of the Ruby gem [client-api-builder](https://github.com/dougyouch/client-api-builder).
 
-> Status: v0.1 in development. Sync only; async, streaming and typed returns are planned.
+> Status: v0.2 in development. Sync and async calls, streaming and response hooks work; typed returns are planned.
 
 ## Quick start
 
@@ -51,7 +51,7 @@ gh.with_options(timeout=5, retries=1).get_repos("octocat")
 
 ## Routes
 
-`@route([method,] path, query=..., body=..., expected=..., returns=..., timeout=...)`
+`@route([method,] path, query=..., body=..., expected=..., returns=..., timeout=..., stream=...)`
 
 - **Method inference.** A name that is, or starts with, `post`, `create`, `add` or `insert` followed by `_` is POST. `put`, `update`, `modify` and `change` are PUT, `patch` is PATCH, and `delete`, `remove` and `destroy` are DELETE. Anything else is GET.
 - **Placeholders.** Write `{name}` in paths, query values and body values (paths also take `:name`). The value comes from the argument with that name, or else from the client's attribute or method. A string that is exactly `"{name}"` keeps the value's type.
@@ -59,6 +59,39 @@ gh.with_options(timeout=5, retries=1).get_repos("octocat")
 - **Returns.** Parsed JSON by default (`None` for an empty body), or `returns="text" | "bytes" | "response"`.
 - **Errors.** Any status outside `expected` (any 2xx when it's unset) raises `UnexpectedResponse`, which carries the `.response`.
 - **Falling back to the client.** A parameter whose default is `FROM_CLIENT` takes the client's attribute of the same name when the caller leaves it out: `def list_members(self, org: str = FROM_CLIENT)`.
+
+### Response hook
+
+Give the method a keyword-only parameter annotated `Result` and its body runs after the request. The parameter receives the processed result (parsed JSON, or whatever `returns` asks for), and a value the body returns replaces it. Returning `None` keeps the result. Callers never see the parameter.
+
+```python
+@route("/users/{username}")
+def get_login(self, username: str, *, data: Result) -> str:
+    return data["login"]
+
+gh.get_login("octocat")  # "octocat"
+```
+
+### Streaming
+
+| `stream=` | Destination | Returns |
+| --- | --- | --- |
+| `"file"` | the path in a `file` parameter, written `wb` | the `httpx.Response` |
+| `"io"` | the writable object in an `io` parameter, left open | the `httpx.Response` |
+| `"iter"` | none | a `ChunkIterator` of `bytes` (an `AsyncChunkIterator` through `.aio`) |
+
+```python
+@route("/files/{id}", stream="file")
+def download(self, id: int, file: str): ...
+
+with gh.get_events() as events:   # stream="iter"; the with block closes the connection
+    for chunk in events: ...
+```
+
+- The status is checked before any of the body is read. An error response raises `UnexpectedResponse` with its body readable, and nothing is written: an existing file is left untouched.
+- File paths with a null byte or a `..` segment are rejected before the request is sent, as in the Ruby gem. Absolute paths are allowed.
+- Opening the stream is retried like any request; a failure while the body is being read is raised, not retried.
+- In async calls, an `io` object whose `write` returns an awaitable (such as an aiofiles file) is awaited.
 
 ### Routes without a `def`
 
@@ -68,9 +101,9 @@ For simple endpoints, assign the route and let the class generate the method, as
 class GitHubApi(Client):
     org: str  # declared, so {org} falls back to self.org
 
-    get_user = route("/users/:username")                             # (*, username)
+    get_user = route("/users/:username")  # (*, username)
     list_repos = route("/orgs/{org}/repos", query={"page": "{page}"})  # (*, org=FROM_CLIENT, page)
-    create_gist = route("/gists")                                    # (*, body=None), POST
+    create_gist = route("/gists")  # (*, body=None), POST
 
 
 gh.get_user(username="octocat")
@@ -147,6 +180,33 @@ close_transports()  # at shutdown
 ```
 
 A client uses its own `transport=` argument if it was given one. Otherwise it uses the transport registered for its class or the nearest base class, and otherwise the process default. Sections use their root client's transport. A custom transport is any object with `send(spec) -> httpx.Response` and `close()`.
+
+## Async
+
+The same client class works with `await`: `client.aio` is a view whose route calls return coroutines.
+
+```python
+user = gh.get_user("octocat")  # sync
+user = await gh.aio.get_user("octocat")  # async, same class and routes
+issues = await gh.aio.issues.list("acme", "api")  # sections too
+await gh.aio.with_options(timeout=5).get_user("a")  # with_options, in either order
+```
+
+Async calls have transports of their own, registered beside the sync ones. `use_transport` sends an async transport (one whose `send` is a coroutine) to the async side, so configuring one side never changes the other.
+
+| Transport | Connections |
+| --- | --- |
+| `AsyncOneShotTransport` (default) | a new one per request |
+| `AsyncPooledTransport` | one `httpx.AsyncClient` per event loop (an `AsyncClient` can't be shared across loops) |
+| `AsyncHttpxClientTransport` | an `httpx.AsyncClient` you own |
+
+```python
+use_transport(AsyncPooledTransport(http2=True))  # async default for every client
+gh = GitHubApi("token", "acme", async_transport=AsyncHttpxClientTransport(async_client))
+await aclose_transports()  # at shutdown, inside the event loop
+```
+
+Retries sleep with `asyncio.sleep`. `should_retry`, `escape_path` and callable headers stay plain sync methods, shared by both sides.
 
 ## Development
 

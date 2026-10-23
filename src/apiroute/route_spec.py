@@ -11,3 +11,4 @@ class RouteSpec(NamedTuple):
     expected: int | tuple[int, ...] | None
     returns: str
     timeout: float | None
+    stream: str | None = None

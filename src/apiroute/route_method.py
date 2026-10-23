@@ -23,7 +23,7 @@ class RouteMethod:
 
     def compile(self, owner: type, name: str) -> None:
         self.definition = RouteCompiler(owner.__qualname__, name, self._func, self._spec).compile()
-        self.__signature__ = self.definition.signature
+        self.__signature__ = self.definition.call_signature
 
     def __call__(self, router: Any, *args: Any, **kwargs: Any) -> Any:
         """Called through the class, like an unbound method: Api.get_user(client, ...)."""
@@ -34,20 +34,42 @@ class RouteMethod:
             return self
         return self.bind(instance, RequestOptions())
 
-    def bind(self, router: Any, options: RequestOptions) -> Callable:
+    def bind(self, router: Any, options: RequestOptions, is_async: bool = False) -> Callable:
+        """The route as a method of router; a coroutine function when is_async."""
         definition = self.definition
+        func = self._func
 
-        @functools.wraps(self._func)
-        def call(*args: Any, **kwargs: Any) -> Any:
-            bound = definition.signature.bind(router, *args, **kwargs)
+        def values_of(args: tuple, kwargs: dict) -> dict[str, Any]:
+            bound = definition.call_signature.bind(router, *args, **kwargs)
             bound.apply_defaults()
             values = {
                 name: value for name, value in bound.arguments.items() if value is not FROM_CLIENT
             }
             values.pop(next(iter(values)))  # self
-            return router._call_route(definition, values, options)
+            return values
 
-        call.__signature__ = definition.signature.replace(
-            parameters=list(definition.signature.parameters.values())[1:]
+        def finish(values: dict[str, Any], result: Any) -> Any:
+            """Runs the method body as the response hook when it takes a Result."""
+            if definition.result_param is None:
+                return result
+            replaced = func(router, **values, **{definition.result_param: result})
+            return result if replaced is None else replaced
+
+        if is_async:
+
+            @functools.wraps(func)
+            async def call(*args: Any, **kwargs: Any) -> Any:
+                values = values_of(args, kwargs)
+                return finish(values, await router._call_route_async(definition, values, options))
+
+        else:
+
+            @functools.wraps(func)
+            def call(*args: Any, **kwargs: Any) -> Any:
+                values = values_of(args, kwargs)
+                return finish(values, router._call_route(definition, values, options))
+
+        call.__signature__ = definition.call_signature.replace(
+            parameters=list(definition.call_signature.parameters.values())[1:]
         )
         return call

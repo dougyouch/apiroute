@@ -6,12 +6,16 @@ from apiroute.argument_targets import ArgumentTarget
 from apiroute.http_method import infer_http_method, normalize_http_method
 from apiroute.path_template import PathTemplate
 from apiroute.request_options import RETURN_MODES
+from apiroute.result import Result
 from apiroute.route_definition import ArgumentBinding, RouteDefinition
 from apiroute.route_definition_error import RouteDefinitionError
 from apiroute.route_spec import RouteSpec
 from apiroute.value_template import ValueTemplate
 
 _VARIADIC = (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+
+# Stream modes, and the parameter each takes its destination from
+STREAM_PARAMS = {"file": "file", "io": "io", "iter": None}
 
 
 class RouteCompiler:
@@ -36,7 +40,10 @@ class RouteCompiler:
         signature = inspect.signature(self._func)
         referenced = set(path.names) | _names(query) | _names(body)
         has_body_template = body is not None or literal_body is not None
-        bindings, body_param = self._bind_arguments(signature, referenced, has_body_template)
+        stream_param = self._stream_param(signature)
+        bindings, body_param, result_param = self._bind_arguments(
+            signature, referenced | {stream_param}, has_body_template
+        )
         return RouteDefinition(
             name=self._name,
             http_method=self._http_method(),
@@ -50,6 +57,9 @@ class RouteCompiler:
             returns=self._returns(),
             timeout=self._spec.timeout,
             signature=signature,
+            result_param=result_param,
+            stream=self._spec.stream,
+            stream_param=stream_param,
         )
 
     def _http_method(self) -> str:
@@ -69,15 +79,19 @@ class RouteCompiler:
 
     def _bind_arguments(
         self, signature: inspect.Signature, referenced: set[str], has_body_template: bool
-    ) -> tuple[tuple[ArgumentBinding, ...], str | None]:
+    ) -> tuple[tuple[ArgumentBinding, ...], str | None, str | None]:
         bindings: list[ArgumentBinding] = []
         body_param = None
+        result_param = None
         for param in list(signature.parameters.values())[1:]:
             if param.kind in _VARIADIC:
                 stars = "*" if param.kind is inspect.Parameter.VAR_POSITIONAL else "**"
                 raise TypeError(f"{stars}{param.name} isn't supported; name each argument")
-            target = self._target_of(param)
-            if target is not None and target.location == "body":
+            markers = self._markers(param)
+            target = next((m for m in map(_as_target, markers) if m is not None), None)
+            if any(_is_result(marker) for marker in markers):
+                result_param = self._only_result_param(result_param, param)
+            elif target is not None and target.location == "body":
                 body_param = self._only_body_param(body_param, param.name, has_body_template)
             elif target is not None:
                 bindings.append(
@@ -92,7 +106,14 @@ class RouteCompiler:
                     f"parameter {param.name!r} isn't used by the path, query or body; "
                     "annotate it with Query, Header or Body"
                 )
-        return tuple(bindings), body_param
+        return tuple(bindings), body_param, result_param
+
+    def _only_result_param(self, current: str | None, param: inspect.Parameter) -> str:
+        if param.kind is not inspect.Parameter.KEYWORD_ONLY:
+            raise TypeError(f"Result parameter {param.name!r} must be keyword-only (after *)")
+        if current is not None:
+            raise TypeError(f"both {current!r} and {param.name!r} are Result parameters")
+        return param.name
 
     def _only_body_param(self, current: str | None, name: str, has_body_template: bool) -> str:
         if has_body_template:
@@ -101,15 +122,13 @@ class RouteCompiler:
             raise TypeError(f"both {current!r} and {name!r} are bodies")
         return name
 
-    def _target_of(self, param: inspect.Parameter) -> ArgumentTarget | None:
+    def _markers(self, param: inspect.Parameter) -> tuple[Any, ...]:
+        """The annotation, or with Annotated[...] its metadata, where Query, Header, Body or
+        Result may be found."""
         annotation = self._evaluated(param.annotation)
         if get_origin(annotation) is Annotated:
-            for item in annotation.__metadata__:
-                target = _as_target(item)
-                if target is not None:
-                    return target
-            return None
-        return _as_target(annotation)
+            return annotation.__metadata__
+        return (annotation,)
 
     def _evaluated(self, annotation: Any) -> Any:
         """String annotations (from __future__ import annotations) are evaluated when possible;
@@ -120,6 +139,16 @@ class RouteCompiler:
             return eval(annotation, getattr(self._func, "__globals__", {}))  # noqa: S307
         except Exception:
             return None
+
+    def _stream_param(self, signature: inspect.Signature) -> str | None:
+        if self._spec.stream is None:
+            return None
+        if self._spec.stream not in STREAM_PARAMS:
+            raise ValueError(f"stream must be one of {tuple(STREAM_PARAMS)}")
+        name = STREAM_PARAMS[self._spec.stream]
+        if name is not None and name not in signature.parameters:
+            raise TypeError(f"stream={self._spec.stream!r} needs a {name!r} parameter")
+        return name
 
     def _expected(self) -> frozenset[int] | None:
         expected = self._spec.expected
@@ -137,6 +166,10 @@ class RouteCompiler:
 
 def _names(template: ValueTemplate | None) -> frozenset[str]:
     return frozenset() if template is None else frozenset(template.names)
+
+
+def _is_result(annotation: Any) -> bool:
+    return annotation is Result or isinstance(annotation, Result)
 
 
 def _as_target(annotation: Any) -> ArgumentTarget | None:

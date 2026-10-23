@@ -17,6 +17,9 @@ class HttpxClientFactory:
     def new_client(self) -> httpx.Client:
         return httpx.Client(**self._options)
 
+    def new_async_client(self) -> httpx.AsyncClient:
+        return httpx.AsyncClient(**self._options)
+
 
 def _with_shared_ssl_context(options: dict[str, Any]) -> dict[str, Any]:
     options = dict(options)

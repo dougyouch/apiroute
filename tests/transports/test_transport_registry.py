@@ -37,12 +37,12 @@ def test_class_registration_applies_to_subclasses_and_beats_the_default():
     assert registry.for_class(Section) is default
 
 
-def test_close_all_and_reset():
+def test_registered_lists_each_transport_once_and_reset_forgets_them():
     registry = TransportRegistry()
     default, api = FakeTransport(), FakeTransport()
     registry.use(default)
     registry.use(api, Api)
-    registry.close_all()
-    assert default.closed and api.closed
+    registry.use(api, ChildApi)
+    assert registry.registered() == [api, default]
     registry.reset()
     assert isinstance(registry.for_class(Api), OneShotTransport)

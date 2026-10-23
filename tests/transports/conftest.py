@@ -27,3 +27,18 @@ def created_clients(monkeypatch) -> list[httpx.Client]:
 
     monkeypatch.setattr(HttpxClientFactory, "new_client", tracking)
     return clients
+
+
+@pytest.fixture
+def created_async_clients(monkeypatch) -> list[httpx.AsyncClient]:
+    """Every httpx.AsyncClient a factory builds, in order."""
+    clients: list[httpx.AsyncClient] = []
+    original = HttpxClientFactory.new_async_client
+
+    def tracking(self):
+        client = original(self)
+        clients.append(client)
+        return client
+
+    monkeypatch.setattr(HttpxClientFactory, "new_async_client", tracking)
+    return clients
