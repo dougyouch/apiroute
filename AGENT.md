@@ -14,7 +14,7 @@ Guidance for AI coding agents (and people) working in this repository.
 | `src/apiroute/codegen/` | The generator behind the `apiroute` CLI (`cli.py`), with `openapi/` and `wsdl/` front ends and the emitters that write client code |
 | `tests/` | One test module per runtime class; `tests/codegen/`, `tests/soap/` and `tests/transports/` cover the generator, SOAP and transports |
 | `.github/workflows/` | `ci.yml` and `release.yml` (release-please and PyPI) |
-| `.agent/skills/apiroute-client.md` | Skill for creating and maintaining repositories of generated clients (e.g. `ebay-apiroute`) |
+| `.agent/skills/apiroute-client.md` | Skill for creating and maintaining repositories of generated clients for any API |
 
 ## Rules
 

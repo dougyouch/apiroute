@@ -5,9 +5,9 @@ description: Create, set up and maintain a GitHub repository that publishes apir
 
 # apiroute client repositories
 
-Use this skill when asked to create a client repository for an API ("make an ebay-apiroute / stripe-apiroute repo"), or to maintain one: adding or removing an API, a spec change that broke generation, upgrading apiroute, or setting up releases.
+Use this skill when asked to create a client repository for an API ("make a <api>-apiroute repo", e.g. `stripe-apiroute`), or to maintain one: adding or removing an API, a spec change that broke generation, upgrading apiroute, or setting up releases.
 
-A client repository holds generated code that is never edited by hand. It is the output of [apiroute](https://github.com/dougyouch/apiroute)'s generator (`apiroute generate openapi|wsdl`), applied to specs listed in one config file, and refreshed by a scheduled workflow. The reference implementation is **[ebay-apiroute](https://github.com/dougyouch/ebay-apiroute)**. Copy its files and adapt them rather than writing new ones; the sections below say what to change.
+A client repository holds generated code that is never edited by hand. It is the output of [apiroute](https://github.com/dougyouch/apiroute)'s generator (`apiroute generate openapi|wsdl`), applied to specs listed in one config file, and refreshed by a scheduled workflow. A worked example is **[ebay-apiroute](https://github.com/dougyouch/ebay-apiroute)**; the examples below use it, but nothing here is specific to eBay. Copy its files and adapt them rather than writing new ones; the sections below say what to change.
 
 ## 1. Gather before creating anything
 
@@ -25,9 +25,9 @@ Ask the user (an AskUserQuestion-style prompt with choices works well), and conf
 
 Then find each API's machine-readable description and its documentation page:
 
-- **Download every spec and check its content, not the HTTP status.** Some sites (eBay's among them) answer unknown URLs with a normal 200 page. A spec must parse as JSON/YAML with an `openapi` or `swagger` key, or as XML with `definitions` (WSDL).
+- **Download every spec and check its content, not the HTTP status.** Some sites (eBay's, for example) answer unknown URLs with a normal 200 page. A spec must parse as JSON/YAML with an `openapi` or `swagger` key, or as XML with `definitions` (WSDL).
 - **Treat documentation links the same way.** Some sites serve an error page to `curl` but the real page to browsers. A page's `<title>` that says "Error" or "Not Found" means "try another URL or a web search", not "it doesn't exist". Every API in the README table needs a working documentation link.
-- **Probe URL patterns** when a site publishes many specs (for eBay: `/api-docs/master/<group>/<api>/openapi/3/<group>_<api>_<version>_oas3.json`), but keep only the ones whose content validates.
+- **Probe URL patterns** when a site publishes many specs (eBay, as an example: `/api-docs/master/<group>/<api>/openapi/3/<group>_<api>_<version>_oas3.json`), but keep only the ones whose content validates.
 - **Generate each spec into a scratch directory** before committing to it: `apiroute generate openapi <url> -o /tmp/x --models`. Note any spec the generator can't handle, and either fix apiroute or leave that API out, telling the user which.
 
 ## 2. Repository layout
@@ -50,7 +50,7 @@ Then find each API's machine-readable description and its documentation page:
   README.md  CHANGELOG.md  LICENSE  pyproject.toml  uv.lock
 ```
 
-`apis.yaml`, one entry per API:
+`apis.yaml`, one entry per API (shown with ebay-apiroute's values as an example):
 
 ```yaml
 package: ebay_apiroute
@@ -66,7 +66,7 @@ apis:
     models: true                    # optional, default true: the typed .models layer
 ```
 
-`scripts/generate.py`: copy [ebay-apiroute's](https://github.com/dougyouch/ebay-apiroute/blob/main/scripts/generate.py). It does the following:
+`scripts/generate.py`: copy an existing one, such as [ebay-apiroute's](https://github.com/dougyouch/ebay-apiroute/blob/main/scripts/generate.py). It does the following:
 
 - `--fetch` downloads each spec, validates it, and re-indents JSON (keeping key order) so diffs stay readable.
 - It runs `apiroute generate <format> specs/<name> -o src/<package>/<module> --client-name ... --models --base-class ...` for each API.
@@ -74,7 +74,7 @@ apis:
 - It rewrites the README table between `<!-- apis:start -->` and `<!-- apis:end -->`.
 - `--only NAME` limits the run to the named APIs.
 
-Remove the eBay-specific `_write_trading_version`, or adapt it to any value your auth class must read from a spec.
+ebay-apiroute's script also has an eBay-specific `_write_trading_version`. Drop it, or adapt it if your auth class must read a value from a spec.
 
 `pyproject.toml`:
 - Depend on `apiroute>=<current>` (add `apiroute[soap]` when any API is a WSDL) and `pydantic>=2`. Put `apiroute[codegen]`, `pytest` and `ruff` in the `dev` dependency group.
@@ -125,11 +125,11 @@ It must have:
   - what CI checks
 - development commands, and how to add an API
 
-Use ebay-apiroute's README as the template.
+Use an existing client repository's README (ebay-apiroute's, for example) as the template.
 
 ## 6. Workflows
 
-Copy them from ebay-apiroute and change the names, the PyPI project and the schedule.
+Copy them from an existing client repository (ebay-apiroute, for example) and change the names, the PyPI project and the schedule.
 
 - **`ci.yml`** runs on pushes to main, pull requests and `workflow_call`:
   - Lint: `ruff check` and `ruff format --check`.
