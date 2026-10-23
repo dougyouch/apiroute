@@ -1,5 +1,7 @@
 import httpx
 import pytest
+
+pytest.importorskip("pydantic")
 from pydantic import BaseModel, Field
 
 from apiroute import Client, TypedClient, route

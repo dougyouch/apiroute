@@ -1,4 +1,6 @@
 import pytest
+
+pytest.importorskip("pydantic")
 from pydantic import BaseModel, ValidationError
 
 from apiroute.pydantic_converter import PydanticConverter

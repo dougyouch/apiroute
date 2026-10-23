@@ -11,6 +11,7 @@ from apiroute.codegen.package_emitter import PackageEmitter
 from apiroute.codegen.wsdl.wsdl_reader import WsdlReader
 from apiroute.soap import SoapFault
 from tests.codegen.conftest import FIXTURES
+from tests.conftest import needs_pydantic
 
 ENV = "http://schemas.xmlsoap.org/soap/envelope/"
 WS = "http://weather.test/ws"
@@ -64,6 +65,7 @@ def test_dict_call_sends_an_envelope_and_reads_the_response(api, recorder):
     assert result["Forecast"][f"{{{GEO}}}Name"] == "Paris"
 
 
+@needs_pydantic
 def test_typed_call_round_trips_models(weather, api, recorder):
     recorder.respond(httpx.Response(200, content=FORECAST.encode()))
     models = importlib.import_module(f"{weather.__name__}.models.models")
@@ -83,6 +85,7 @@ def test_faults_raise_soap_fault(api, recorder):
     assert raised.value.code == "s:Client"
 
 
+@needs_pydantic
 @pytest.mark.anyio
 async def test_async_calls(api, recorder):
     recorder.respond(httpx.Response(200, content=FORECAST.encode()))

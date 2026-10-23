@@ -6,6 +6,7 @@ import httpx
 import pytest
 
 from apiroute import AsyncHttpxClientTransport, HttpxClientTransport
+from tests.conftest import needs_pydantic
 
 
 def pet_json(**overrides):
@@ -76,6 +77,7 @@ def test_form_multipart_bytes_and_text(api, recorder):
     assert api.store.list("o1") == "receipt"
 
 
+@needs_pydantic
 def test_typed_calls_take_and_return_models(shop, api, recorder):
     recorder.respond(
         httpx.Response(201, json=pet_json(id=5, owner={"name": "Ann"}, kind={"barks": True}))
@@ -87,6 +89,7 @@ def test_typed_calls_take_and_return_models(shop, api, recorder):
     assert type(pet.kind).__name__ == "Dog"
 
 
+@needs_pydantic
 def test_a_typed_call_imports_only_the_models_it_returns(shop, api, recorder):
     recorder.respond(httpx.Response(200, json={"id": 3, "status": "placed"}))
     order = api.store.models.place_order(body={"pet_id": 1})
@@ -95,12 +98,14 @@ def test_a_typed_call_imports_only_the_models_it_returns(shop, api, recorder):
     assert not loaded(shop, "pets.models.schemas.owner")
 
 
+@needs_pydantic
 def test_typed_lists_and_wire_names(api, recorder):
     recorder.respond(httpx.Response(200, json=[pet_json(createdAt="2026-01-01", **{"from": "x"})]))
     (pet,) = api.pets.models.list_pets(status="sold")
     assert pet.created_at == "2026-01-01" and pet.from_ == "x"
 
 
+@needs_pydantic
 @pytest.mark.anyio
 async def test_typed_and_dict_calls_through_aio(api, recorder):
     recorder.respond(httpx.Response(200, json=pet_json()), httpx.Response(200, json=pet_json()))
@@ -108,6 +113,7 @@ async def test_typed_and_dict_calls_through_aio(api, recorder):
     assert (await api.aio.pets.get_pet(1)) == pet_json()
 
 
+@needs_pydantic
 def test_models_index_is_lazy_but_complete(shop):
     index = module(shop, "pets.models.models")
     assert "Pet" in dir(index) and "Pet" in index.__all__

@@ -1,3 +1,4 @@
+import importlib.util
 import json
 
 import httpx
@@ -58,3 +59,9 @@ def reset_transports():
     yield
     TRANSPORTS.reset()
     ASYNC_TRANSPORTS.reset()
+
+
+# For tests of the pydantic-backed layers; CI also runs the suite without pydantic installed
+needs_pydantic = pytest.mark.skipif(
+    importlib.util.find_spec("pydantic") is None, reason="needs pydantic"
+)

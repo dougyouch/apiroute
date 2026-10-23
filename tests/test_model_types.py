@@ -1,6 +1,9 @@
 from dataclasses import dataclass
 from typing import Annotated, Any, Optional
 
+import pytest
+
+pytest.importorskip("pydantic")
 from pydantic import BaseModel
 
 from apiroute.model_types import is_model_type, is_pydantic_model

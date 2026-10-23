@@ -5,6 +5,8 @@ from typing import Annotated
 
 import httpx
 import pytest
+
+pytest.importorskip("pydantic")
 from pydantic import BaseModel
 
 from apiroute import Client, ResponseValidationError, Result, RouteDefinitionError, route
