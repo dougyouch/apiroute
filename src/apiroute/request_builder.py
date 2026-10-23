@@ -46,6 +46,10 @@ class RequestBuilder:
     ) -> dict[str, str]:
         headers: dict[str, tuple[str, Any]] = {}
         _merge_headers(headers, self._dynamic(self._config.headers))
+        if definition.headers is not None:
+            _merge_headers(
+                headers, definition.headers.render(PlaceholderResolver(values, self._root))
+            )
         if content_type and "content-type" not in headers:
             headers["content-type"] = ("Content-Type", content_type)
         _merge_headers(headers, self._bound(definition, values, "header"))
@@ -83,7 +87,8 @@ class RequestBuilder:
             data = _merge_body(data, self._options.body)
         if data is None:
             return None, None
-        return BodyEncoder(self._config.body_format).encode(self._root, data)
+        body_format = definition.body_format or self._config.body_format
+        return BodyEncoder(body_format).encode(self._root, data)
 
     def _route_body(
         self,

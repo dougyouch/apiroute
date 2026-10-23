@@ -3,6 +3,7 @@ from collections.abc import Callable
 from typing import Annotated, Any, NamedTuple, get_origin
 
 from apiroute.argument_targets import ArgumentTarget
+from apiroute.body_encoder import BODY_FORMATS
 from apiroute.deferred_converter import DeferredConverter
 from apiroute.http_method import infer_http_method, normalize_http_method
 from apiroute.model_types import strip_annotated
@@ -39,9 +40,10 @@ class RouteCompiler:
     def _compile(self) -> RouteDefinition:
         path = PathTemplate(self._path())
         query = None if self._spec.query is None else ValueTemplate(self._spec.query)
+        headers = None if self._spec.headers is None else ValueTemplate(self._spec.headers)
         body, literal_body = self._body()
-        signature = inspect.signature(self._func)
-        referenced = set(path.names) | _names(query) | _names(body)
+        signature = self._signature()
+        referenced = set(path.names) | _names(query) | _names(body) | _names(headers)
         has_body_template = body is not None or literal_body is not None
         stream_param = self._stream_param(signature)
         bindings, body_param, result_param = self._bind_arguments(
@@ -64,7 +66,18 @@ class RouteCompiler:
             stream=self._spec.stream,
             stream_param=stream_param,
             converter=self._converter(signature, result_param),
+            headers=headers,
+            body_format=self._body_format(),
+            decoder=self._spec.decoder,
         )
+
+    def _signature(self) -> inspect.Signature:
+        """The method's signature, with postponed (string) annotations evaluated when their
+        names exist, so help() and inspect show real types; otherwise left as strings."""
+        try:
+            return inspect.signature(self._func, eval_str=True)
+        except Exception:
+            return inspect.signature(self._func)
 
     def _http_method(self) -> str:
         if self._spec.method is None:
@@ -143,6 +156,13 @@ class RouteCompiler:
             return eval(annotation, getattr(self._func, "__globals__", {}))  # noqa: S307
         except Exception:
             return None
+
+    def _body_format(self) -> Any:
+        body_format = self._spec.body_format
+        if body_format is not None and not callable(body_format):
+            if body_format not in BODY_FORMATS:
+                raise ValueError(f"body_format must be one of {BODY_FORMATS} or a callable")
+        return body_format
 
     def _stream_param(self, signature: inspect.Signature) -> str | None:
         if self._spec.stream is None:

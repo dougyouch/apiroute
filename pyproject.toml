@@ -35,11 +35,24 @@ Changelog = "https://github.com/dougyouch/apiroute/blob/main/CHANGELOG.md"
 pydantic = [
     "pydantic>=2",
 ]
+soap = [
+    "defusedxml>=0.7",
+]
+codegen = [
+    "defusedxml>=0.7",
+    "pydantic>=2",
+    "pyyaml>=6",
+]
+
+[project.scripts]
+apiroute = "apiroute.codegen.cli:main"
 
 [dependency-groups]
 dev = [
+    "defusedxml>=0.7",
     "pydantic>=2",
     "pytest>=8",
+    "pyyaml>=6",
     "ruff>=0.6",
 ]
 

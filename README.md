@@ -7,6 +7,8 @@ Build API clients declaratively: one `@route` per endpoint, safe defaults, [http
 ```bash
 pip install apiroute            # or: uv add apiroute
 pip install apiroute[pydantic]  # to return pydantic models
+pip install apiroute[codegen]   # to generate clients from OpenAPI/Swagger specs and WSDLs
+pip install apiroute[soap]      # to run generated SOAP clients
 ```
 
 apiroute needs Python 3.10 or newer, and httpx.
@@ -322,6 +324,57 @@ await aclose_transports()  # at shutdown, inside the event loop
 ```
 
 Retries sleep with `asyncio.sleep`. `should_retry`, `escape_path`, `on_request`, `on_response` and callable headers stay plain sync methods, shared by both sides.
+
+## Code generation
+
+`apiroute generate` writes a client package from an OpenAPI 3.0/3.1 or Swagger 2.0 spec, or from a WSDL 1.1 document (document/literal, SOAP 1.1 and 1.2). Specs can be file paths or URLs, in JSON or YAML.
+
+```bash
+apiroute generate openapi github.yaml -o gh --client-name GitHubApi           # dict routes only
+apiroute generate openapi github.yaml -o gh --client-name GitHubApi --models  # plus pydantic models
+apiroute generate wsdl "https://example.com/weather?wsdl" -o weather --models
+```
+
+The package has two layers:
+
+```python
+from gh import GitHubApi
+
+
+class MyGitHub(GitHubApi):  # yours, outside gh/: regenerating never touches it
+    headers = {"Authorization": lambda self: f"Bearer {self.token}"}
+
+    def __init__(self, token: str, **kwargs):
+        super().__init__(**kwargs)
+        self.token = token
+
+
+gh = MyGitHub("ghp_...")
+gh.meta.get()  # each tag is a section; dicts in and out
+gh.repos.get("octocat", "hello-world")
+gh.repos.models.get("octocat", "hello-world")  # -> FullRepository (with --models)
+await gh.repos.models.aio.get("octocat", "hello-world")
+```
+
+```text
+gh/
+  client.py              GitHubApi: untagged routes; each tag a lazily imported section
+  models/                with --models
+    client.py            gh.models: typed versions of the root routes
+    models.py            a lazy index of the models
+    schemas/*.py         one module per model (models that refer to each other share one)
+  repos/
+    client.py            gh.repos: the tag's dict routes
+    models/
+      client.py, models.py, schemas/*.py
+```
+
+Nothing is imported until it's used. On GitHub's spec (1,242 operations, 4,035 models), constructing the client takes 0.6 ms, a dict call about 3 ms all in, and the first typed call costs pydantic's own import plus a few milliseconds for the models it returns.
+
+- **Your code goes outside the package.** Subclass the client to add behaviour, such as auth a spec doesn't declare (above); headers merge down subclasses. Regenerating removes only files the generator wrote, and refuses to write into a directory it didn't create.
+- **Output passes `ruff check` and `ruff format`.** When ruff is installed, the generator runs it over the output; `--no-format` skips that.
+- **OpenAPI:** tags become sections, `operationId`s become method names, and path, query and header parameters become arguments. Bodies can be JSON, form or multipart; responses can be JSON, text or binary. Schemas become models, with `allOf` merged, `oneOf`/`anyOf` as unions and enums as `Literal`. Bearer, basic and API key auth become constructor arguments.
+- **WSDL:** each operation becomes a POST route with its `SOAPAction`. Bodies are dicts in the xmltodict shape: child elements as keys, `"@attr"` for attributes, `"#text"` for text content, and `"{namespace}local"` for an element from another namespace. Faults raise `apiroute.soap.SoapFault`. XML is parsed with `defusedxml`.
 
 ## Security
 

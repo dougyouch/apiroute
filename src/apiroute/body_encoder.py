@@ -2,13 +2,15 @@ import json
 from typing import Any
 from urllib.parse import urlencode
 
+from apiroute.multipart_encoder import MultipartEncoder
 from apiroute.query_encoder import QueryEncoder
 
-BODY_FORMATS = ("json", "form")
+BODY_FORMATS = ("json", "form", "multipart")
 
 
 class BodyEncoder:
-    """Serializes a route's body data according to the class's body_format."""
+    """Serializes a route's body data according to its body_format (the route's, else the
+    class's)."""
 
     def __init__(self, body_format: Any):
         self._format = body_format
@@ -18,8 +20,12 @@ class BodyEncoder:
         if isinstance(data, (str, bytes)):
             return data, None
         if callable(self._format):
-            return self._format(client, data), None
+            encoded = self._format(client, data)
+            # a format may name its Content-Type: SOAP envelopes are text/xml or soap+xml
+            return encoded if isinstance(encoded, tuple) else (encoded, None)
         if self._format == "form":
             pairs = QueryEncoder("nested").encode(data)
             return urlencode(pairs), "application/x-www-form-urlencoded"
+        if self._format == "multipart":
+            return MultipartEncoder().encode(data)
         return json.dumps(data).encode(), "application/json"

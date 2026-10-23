@@ -22,12 +22,16 @@ class Router:
     def __init_subclass__(cls, **kwargs: Any):
         super().__init_subclass__(**kwargs)
         cls._config = ClientConfig.from_class(cls)
+        lazy = cls._config.compile_routes == "lazy"
         for name, value in list(vars(cls).items()):
             if isinstance(value, RouteDecorator):
                 value = value.generated_method(cls, name)
                 setattr(cls, name, value)
             if isinstance(value, RouteMethod):
-                value.compile(cls, name)
+                if lazy:
+                    value.defer(cls, name)
+                else:
+                    value.compile(cls, name)
         SectionAccessor.install(cls)
 
     @property

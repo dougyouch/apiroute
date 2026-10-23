@@ -14,6 +14,9 @@ def route(
     timeout: float | None = None,
     stream: str | None = None,
     model: Any = None,
+    headers: dict[str, Any] | None = None,
+    body_format: Any = None,
+    decoder: Any = None,
 ) -> RouteDecorator:
     """Declares an endpoint, on a def or on its own:
 
@@ -26,11 +29,27 @@ def route(
     stream="file" writes the body to the path in a `file` parameter, stream="io" to the
     writable object in an `io` parameter, and stream="iter" returns the chunks.
     model converts the JSON response (a pydantic model or dataclass, or a list of them);
-    on a def, the return annotation does the same.
+    on a def, the return annotation does the same. headers are sent with this route, after
+    the class's, and may hold {name} placeholders. body_format ("json", "form", "multipart"
+    or a callable) overrides the class's for this route. decoder, a callable taking the
+    httpx.Response, replaces JSON parsing for returns="json" (SOAP uses it to read envelopes).
     """
     method, path = _split(method_and_path)
     path = current_prefix() + path
-    spec = RouteSpec(method, path, query, body, expected, returns, timeout, stream, model)
+    spec = RouteSpec(
+        method=method,
+        path=path,
+        query=query,
+        body=body,
+        expected=expected,
+        returns=returns,
+        timeout=timeout,
+        stream=stream,
+        model=model,
+        headers=headers,
+        body_format=body_format,
+        decoder=decoder,
+    )
     return RouteDecorator(spec)
 
 

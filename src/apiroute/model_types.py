@@ -25,10 +25,11 @@ def is_dataclass_type(tp: Any) -> bool:
 
 
 def is_pydantic_model(tp: Any) -> bool:
-    """True for a pydantic BaseModel subclass. pydantic is only looked at when something has
-    already imported it, which any program defining such a model has."""
-    pydantic = sys.modules.get("pydantic")
-    return pydantic is not None and is_class(tp) and issubclass(tp, pydantic.BaseModel)
+    """True for a pydantic BaseModel subclass. Only pydantic.main is consulted, and only once
+    something has imported it, as defining any model does: reading pydantic.BaseModel would
+    itself import pydantic's model machinery (about 40 ms) for routes that never use it."""
+    main = sys.modules.get("pydantic.main")
+    return main is not None and is_class(tp) and issubclass(tp, main.BaseModel)
 
 
 def contains(tp: Any, predicate) -> bool:

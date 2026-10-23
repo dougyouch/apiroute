@@ -48,7 +48,7 @@ class GeneratedSignature:
 
     def _placeholder_names(self) -> list[str]:
         names = list(PathTemplate(self._spec.path).names)
-        for template in (self._spec.query, self._spec.body):
+        for template in (self._spec.query, self._spec.body, self._spec.headers):
             if template is not None and not isinstance(template, (str, bytes)):
                 names += ValueTemplate(template).names
         return list(dict.fromkeys(names))

@@ -15,11 +15,13 @@ class ResponseReader:
         expected: frozenset[int] | None,
         returns: str,
         converter: Any = None,
+        decoder: Any = None,
     ):
         self._route_name = route_name
         self._expected = expected
         self._returns = returns
         self._converter = converter
+        self._decoder = decoder
 
     def read(self, response: httpx.Response) -> Any:
         self.check_status(response)
@@ -50,6 +52,8 @@ class ResponseReader:
             return response.content
         if self._returns == "text":
             return response.text
+        if self._decoder is not None:
+            return self._decoder(response)
         if not response.content:
             return None
         try:
