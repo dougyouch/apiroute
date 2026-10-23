@@ -25,6 +25,12 @@ classifiers = [
 ]
 dependencies = ["httpx>=0.27"]
 
+[project.urls]
+Homepage = "https://github.com/dougyouch/apiroute"
+Repository = "https://github.com/dougyouch/apiroute"
+Issues = "https://github.com/dougyouch/apiroute/issues"
+Changelog = "https://github.com/dougyouch/apiroute/blob/main/CHANGELOG.md"
+
 [project.optional-dependencies]
 pydantic = [
     "pydantic>=2",
