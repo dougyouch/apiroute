@@ -40,3 +40,8 @@ def test_expected_codes_replace_the_2xx_rule():
     assert reader.read(response(202, text="queued")) == "queued"
     with pytest.raises(UnexpectedResponse):
         reader.read(response(200))
+
+
+def test_invalid_json_raises_unexpected_response():
+    with pytest.raises(UnexpectedResponse, match="get_thing: invalid JSON body from GET"):
+        ResponseReader("get_thing", None, "json").read(response(content=b"<html>"))

@@ -14,15 +14,21 @@ def is_union(tp: Any) -> bool:
     return get_origin(tp) in _UNION_TYPES
 
 
+def is_class(tp: Any) -> bool:
+    """A real class. On Python 3.10, isinstance(list[int], type) is True, so generic aliases
+    are ruled out by their origin."""
+    return isinstance(tp, type) and get_origin(tp) is None
+
+
 def is_dataclass_type(tp: Any) -> bool:
-    return isinstance(tp, type) and dataclasses.is_dataclass(tp)
+    return is_class(tp) and dataclasses.is_dataclass(tp)
 
 
 def is_pydantic_model(tp: Any) -> bool:
     """True for a pydantic BaseModel subclass. pydantic is only looked at when something has
     already imported it, which any program defining such a model has."""
     pydantic = sys.modules.get("pydantic")
-    return pydantic is not None and isinstance(tp, type) and issubclass(tp, pydantic.BaseModel)
+    return pydantic is not None and is_class(tp) and issubclass(tp, pydantic.BaseModel)
 
 
 def contains(tp: Any, predicate) -> bool:

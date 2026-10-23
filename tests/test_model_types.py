@@ -36,3 +36,9 @@ def test_plain_types_do_not():
 def test_pydantic_detection():
     assert is_pydantic_model(User)
     assert not is_pydantic_model(Point)
+
+
+def test_generic_aliases_are_not_classes():
+    # On Python 3.10 isinstance(list[User], type) is True; this must not reach issubclass
+    assert not is_pydantic_model(list[User])
+    assert not is_pydantic_model(dict[str, User])

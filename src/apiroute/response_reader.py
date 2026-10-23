@@ -50,4 +50,9 @@ class ResponseReader:
             return response.content
         if self._returns == "text":
             return response.text
-        return response.json() if response.content else None
+        if not response.content:
+            return None
+        try:
+            return response.json()
+        except ValueError as error:
+            raise UnexpectedResponse(self._route_name, response, "invalid JSON body") from error

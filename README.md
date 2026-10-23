@@ -2,7 +2,14 @@
 
 Build API clients declaratively: one `@route` per endpoint, safe defaults, [httpx](https://www.python-httpx.org/) underneath. A Python port of the Ruby gem [client-api-builder](https://github.com/dougyouch/client-api-builder).
 
-> Status: pre-1.0. Sync and async calls, streaming, hooks and typed returns work.
+## Installation
+
+```bash
+pip install apiroute            # or: uv add apiroute
+pip install apiroute[pydantic]  # to return pydantic models
+```
+
+apiroute needs Python 3.10 or newer, and httpx.
 
 ## Quick start
 
@@ -137,6 +144,19 @@ gh.list_repos(page=2)
 - POST, PUT and PATCH routes without a body template take an optional `body`.
 - `help()`, `inspect.signature` and wrong-argument `TypeError`s work. Editors and type checkers can't see a signature made at runtime, though, so prefer a `def` where autocomplete and type checking matter.
 
+### Namespaces
+
+Routes declared inside a `namespace` block get its path prefix, as in the gem. Blocks nest.
+
+```python
+class Api(Client):
+    with namespace("/admin"):
+        list_users = route("/users")  # GET /admin/users
+
+        @route("/users/{id}")
+        def delete_user(self, id: int): ...  # DELETE /admin/users/{id}
+```
+
 ### Per-request options
 
 `client.with_options(headers=..., query=..., body=..., timeout=..., retries=..., returns=...)` returns a view of the client whose route calls also send these options. Calls can be chained.
@@ -152,6 +172,60 @@ def create_user(self, name: str) -> dict: ...
 client.with_options(body={"notify": None, "source": "import"}).create_user("Ann")
 # sends {"user": {"name": "Ann"}, "source": "import"}
 ```
+
+## Sections
+
+A nested class that subclasses `Section` groups routes under the client, as `client.<class name>`:
+
+```python
+class Api(Client):
+    base_url = "https://api.example.com"
+    headers = {"Authorization": lambda self: f"Bearer {self.token}"}
+
+    class users(Section):
+        inherit = ("headers",)  # use the client's headers too
+
+        list = route("/users")
+
+    class uploads(Section):
+        base_url = "https://uploads.example.com"  # its own host
+        headers = {"Authorization": lambda self: f"Upload {self.upload_token}"}
+
+        create = route("/files")
+
+
+api.users.list()
+api.uploads.create(body=data)
+```
+
+- A section uses its parent's `base_url` unless it sets one. It inherits nothing else unless listed in `inherit` (`"headers"`, `"query_params"`), as in the gem.
+- `{name}` placeholders, callable headers, the overridable methods and the transport all belong to the root client, so a section can use the client's state.
+- Sections nest, are created once per client, and remain reachable as classes (`Api.users`).
+
+## Retries
+
+```python
+retries = Retries(attempts=3, sleep=0.5)  # 3 attempts in total, 0.5 s apart
+retries = Retries.exponential(attempts=5, initial=0.1, max=10)  # 0.1, 0.2, 0.4, 0.8 s
+retries = Retries(attempts=5, sleep=0.1, backoff=2, max_sleep=10, jitter=True)
+```
+
+- `attempts` is the total number of attempts. The default is one, so nothing is retried until you configure it.
+- The sleep before retry n is `sleep * backoff ** (n - 1)`, capped at `max_sleep`. `jitter=True` sleeps a random time up to that; a number from 0 to 1 shortens it by up to that fraction.
+- Only timeouts, network errors and protocol errors are retried, unless `should_retry` says otherwise. A retried `UnexpectedResponse` with a `Retry-After` header waits that long, capped at `max_sleep`.
+- `with_options(retries=3)` changes the attempts for one call; `with_options(retries=Retries(...))` replaces the policy.
+
+## Errors
+
+| Exception | Raised when | Carries |
+| --- | --- | --- |
+| `RouteDefinitionError` | a route is wrong (an unused parameter, a bad template value or option); raised when the class is created | the class, route and reason in its message |
+| `UnexpectedResponse` | the status isn't expected (any 2xx when `expected` is unset), or a JSON route's body isn't JSON | `.response`, `.status_code`, `.request`, `.route_name` |
+| `ResponseValidationError` | the JSON doesn't fit the route's model | `.response`, `.error`, `.route_name` |
+| `httpx.TransportError` subclasses | the network fails, after retries run out | httpx's details |
+| `ValueError` | a class setting is invalid (a `base_url` scheme, `body_format`, `inherit`), or a streamed file path is unsafe | the reason in its message |
+
+The first three derive from `ApiRouteError`. `client.last_response` holds the most recent response for debugging; it is per client, so don't rely on it when one client is shared between threads.
 
 ## Class settings
 
@@ -220,7 +294,7 @@ gh = GitHubApi("token", "acme", transport=HttpxClientTransport(httpx.Client(tran
 close_transports()  # at shutdown
 ```
 
-A client uses its own `transport=` argument if it was given one. Otherwise it uses the transport registered for its class or the nearest base class, and otherwise the process default. Sections use their root client's transport. A custom transport is any object with `send(spec) -> httpx.Response` and `close()`.
+A client uses its own `transport=` argument if it was given one. Otherwise it uses the transport registered for its class or the nearest base class, and otherwise the process default. Sections use their root client's transport. A custom transport is any object with `send(spec) -> httpx.Response`, `stream(spec)` (a context manager yielding an unread `httpx.Response`, needed only for streaming routes) and `close()`.
 
 ## Async
 
@@ -247,7 +321,22 @@ gh = GitHubApi("token", "acme", async_transport=AsyncHttpxClientTransport(async_
 await aclose_transports()  # at shutdown, inside the event loop
 ```
 
-Retries sleep with `asyncio.sleep`. `should_retry`, `escape_path` and callable headers stay plain sync methods, shared by both sides.
+Retries sleep with `asyncio.sleep`. `should_retry`, `escape_path`, `on_request`, `on_response` and callable headers stay plain sync methods, shared by both sides.
+
+## Security
+
+- **Base URLs** must be `http` or `https` and have a host. This is checked when the class is created and when a `base_url` is passed to a client, which keeps a misconfiguration from reaching `file:` and similar schemes.
+- **Path values** are percent-encoded so each stays one path segment: `get_file(name="a/b c")` requests `/files/a%2Fb%20c`, so a value can never add `..` or a segment. Override `escape_path` to allow `/`.
+- **URLs are joined, not resolved:** the request URL is `base_url` plus the path, so a route can't replace the host.
+- **TLS** is verified by default (httpx). Turning it off takes an explicit `verify=False` on a transport.
+- **Streamed files** are only opened once the status has passed, and paths with a null byte or a `..` segment are rejected.
+
+## Thread safety
+
+- Route definitions are compiled once, when the class is created, and never change afterwards.
+- `PooledTransport` is safe to share between threads, and `ThreadLocalTransport` gives each thread its own connections. `OneShotTransport` shares nothing.
+- A client instance holds no connections, so one instance can be shared between threads. The exception is `last_response`, which is per instance and changes with every request.
+- `namespace` blocks are tracked per thread.
 
 ## Development
 

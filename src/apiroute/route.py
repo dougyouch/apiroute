@@ -1,5 +1,6 @@
 from typing import Any
 
+from apiroute.namespace import current_prefix
 from apiroute.route_decorator import RouteDecorator
 from apiroute.route_spec import RouteSpec
 
@@ -28,6 +29,7 @@ def route(
     on a def, the return annotation does the same.
     """
     method, path = _split(method_and_path)
+    path = current_prefix() + path
     spec = RouteSpec(method, path, query, body, expected, returns, timeout, stream, model)
     return RouteDecorator(spec)
 
