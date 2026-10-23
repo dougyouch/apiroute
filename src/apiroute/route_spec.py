@@ -14,3 +14,4 @@ class RouteSpec(NamedTuple):
     stream: str | None = None
     model: Any = None
     headers: Any = None
+    body_format: Any = None

@@ -39,6 +39,7 @@ class RouteDefinition:
     # Turns parsed JSON into the route's model type; None returns the JSON as parsed
     converter: Any = None
     headers: ValueTemplate | None = None
+    body_format: Any = None
 
     @property
     def call_signature(self) -> inspect.Signature:

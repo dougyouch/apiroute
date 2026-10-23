@@ -15,6 +15,7 @@ def route(
     stream: str | None = None,
     model: Any = None,
     headers: dict[str, Any] | None = None,
+    body_format: Any = None,
 ) -> RouteDecorator:
     """Declares an endpoint, on a def or on its own:
 
@@ -28,11 +29,24 @@ def route(
     writable object in an `io` parameter, and stream="iter" returns the chunks.
     model converts the JSON response (a pydantic model or dataclass, or a list of them);
     on a def, the return annotation does the same. headers are sent with this route, after
-    the class's, and may hold {name} placeholders.
+    the class's, and may hold {name} placeholders. body_format ("json", "form", "multipart"
+    or a callable) overrides the class's for this route.
     """
     method, path = _split(method_and_path)
     path = current_prefix() + path
-    spec = RouteSpec(method, path, query, body, expected, returns, timeout, stream, model, headers)
+    spec = RouteSpec(
+        method=method,
+        path=path,
+        query=query,
+        body=body,
+        expected=expected,
+        returns=returns,
+        timeout=timeout,
+        stream=stream,
+        model=model,
+        headers=headers,
+        body_format=body_format,
+    )
     return RouteDecorator(spec)
 
 

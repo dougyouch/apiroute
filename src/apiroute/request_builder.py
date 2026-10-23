@@ -87,7 +87,8 @@ class RequestBuilder:
             data = _merge_body(data, self._options.body)
         if data is None:
             return None, None
-        return BodyEncoder(self._config.body_format).encode(self._root, data)
+        body_format = definition.body_format or self._config.body_format
+        return BodyEncoder(body_format).encode(self._root, data)
 
     def _route_body(
         self,

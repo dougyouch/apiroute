@@ -3,6 +3,7 @@ from collections.abc import Callable
 from typing import Annotated, Any, NamedTuple, get_origin
 
 from apiroute.argument_targets import ArgumentTarget
+from apiroute.body_encoder import BODY_FORMATS
 from apiroute.deferred_converter import DeferredConverter
 from apiroute.http_method import infer_http_method, normalize_http_method
 from apiroute.model_types import strip_annotated
@@ -66,6 +67,7 @@ class RouteCompiler:
             stream_param=stream_param,
             converter=self._converter(signature, result_param),
             headers=headers,
+            body_format=self._body_format(),
         )
 
     def _http_method(self) -> str:
@@ -145,6 +147,13 @@ class RouteCompiler:
             return eval(annotation, getattr(self._func, "__globals__", {}))  # noqa: S307
         except Exception:
             return None
+
+    def _body_format(self) -> Any:
+        body_format = self._spec.body_format
+        if body_format is not None and not callable(body_format):
+            if body_format not in BODY_FORMATS:
+                raise ValueError(f"body_format must be one of {BODY_FORMATS} or a callable")
+        return body_format
 
     def _stream_param(self, signature: inspect.Signature) -> str | None:
         if self._spec.stream is None:
