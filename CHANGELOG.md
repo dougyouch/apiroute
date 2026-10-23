@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.1.0](https://github.com/dougyouch/apiroute/compare/v1.0.0...v1.1.0) (2026-10-23)
+
+
+### Features
+
+* **codegen:** generate layered client packages from OpenAPI and Swagger specs ([e6e078b](https://github.com/dougyouch/apiroute/commit/e6e078b0229e73b13fdac68796d4c9e17fd19352))
+* **codegen:** generate layered clients from OpenAPI/Swagger specs and WSDLs ([ba7392e](https://github.com/dougyouch/apiroute/commit/ba7392e6d64fbbf8b546007c2078dfb29d8a8662))
+* **codegen:** generate SOAP clients from WSDL documents ([df609ec](https://github.com/dougyouch/apiroute/commit/df609ec733216da96dbfbc9b63ec8cd1d28ee29c))
+* lazy route compilation, lazy attributes, typed clients and route headers ([7c5b71b](https://github.com/dougyouch/apiroute/commit/7c5b71b5635359e09fd8a84f1afde685204267f9))
+* per-route body_format and a multipart body format ([8d5a3c4](https://github.com/dougyouch/apiroute/commit/8d5a3c48e4884bbaff1bd8db20a11e2bd3273c9c))
+
 ## [1.0.0] - 2026-10-23
 
 The first release: a Python port of the Ruby gem
