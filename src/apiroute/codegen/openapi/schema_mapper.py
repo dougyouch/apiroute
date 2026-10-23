@@ -2,6 +2,7 @@ from typing import Any
 
 from apiroute.codegen.api_definition import Model, ModelField
 from apiroute.codegen.openapi.ref_resolver import RefResolver
+from apiroute.codegen.plain_text import plain_text
 from apiroute.codegen.python_names import MODEL_RESERVED, pascal_case, snake_case, unique
 from apiroute.codegen.type_ref import ANY, TypeRef
 
@@ -78,7 +79,7 @@ class SchemaMapper:
         return TypeRef.model(self._by_ref[key])
 
     def _named(self, name: str, schema: Any, base: str) -> Model:
-        description = schema.get("description", "") if isinstance(schema, dict) else ""
+        description = plain_text(schema.get("description", "")) if isinstance(schema, dict) else ""
         if isinstance(schema, dict) and _is_object_model(schema):
             if "allOf" in schema:
                 own = {k: v for k, v in schema.items() if k != "allOf"}
@@ -93,7 +94,7 @@ class SchemaMapper:
             name = unique(pascal_case(hint), self._taken, frozenset())
             fields = self._fields(schema, name, base)
             self._models[name] = Model(
-                name, fields=fields, description=schema.get("description", "")
+                name, fields=fields, description=plain_text(schema.get("description", ""))
             )
             return TypeRef.model(name)
         extra = schema.get("additionalProperties")
@@ -158,7 +159,7 @@ class SchemaMapper:
                     alias=None if name == wire_name else wire_name,
                     type=field_type,
                     required=wire_name in required,
-                    description=description if isinstance(description, str) else "",
+                    description=plain_text(description) if isinstance(description, str) else "",
                 )
             )
         return fields

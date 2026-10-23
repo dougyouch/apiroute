@@ -13,6 +13,7 @@ from apiroute.codegen.openapi.ref_resolver import RefResolver
 from apiroute.codegen.openapi.schema_mapper import SchemaMapper
 from apiroute.codegen.openapi.spec_loader import SpecLoader
 from apiroute.codegen.openapi.swagger2_converter import Swagger2Converter
+from apiroute.codegen.plain_text import plain_text
 from apiroute.codegen.python_names import pascal_case, snake_case, unique
 from apiroute.codegen.type_ref import ANY
 
@@ -37,16 +38,16 @@ class OpenApiReader:
         definition = ApiDefinition(
             client_name=self._client_name,
             base_url=_base_url(document, self._location),
-            title=document.get("info", {}).get("title", ""),
-            description=document.get("info", {}).get("description", ""),
+            title=plain_text(document.get("info", {}).get("title", "")),
+            description=plain_text(document.get("info", {}).get("description", "")),
             source=self._source_name(),
             root=Group("", self._client_name),
         )
         self._mapper = SchemaMapper(self._resolver, definition.models)
         self._groups: dict[str, Group] = {}
         self._group_names: set[str] = set()
-        self._tag_descriptions = {
-            t["name"]: t.get("description", "") for t in document.get("tags", [])
+        self._tag_descriptions = {  # tag -> plain-text description
+            t["name"]: plain_text(t.get("description", "")) for t in document.get("tags", [])
         }
         for path, item in document.get("paths", {}).items():
             self._read_path(definition, path, self._resolver.deref(item))
@@ -90,7 +91,7 @@ class OpenApiReader:
             name=name,
             method=method.upper(),
             path=path,
-            summary=operation.get("summary") or _first_line(operation.get("description", "")),
+            summary=plain_text(operation.get("summary") or operation.get("description", "")),
             parameters=parameters,
             body=self._body(operation.get("requestBody"), hint),
             deprecated=bool(operation.get("deprecated")),
@@ -230,10 +231,6 @@ def _auth(schemes: dict) -> list[AuthScheme]:
                 AuthScheme(unique("token", taken, frozenset()), "header", "Authorization", "bearer")
             )
     return result
-
-
-def _first_line(text: str) -> str:
-    return text.strip().split("\n", 1)[0] if text else ""
 
 
 def _escape(name: str) -> str:
