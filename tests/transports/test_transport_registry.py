@@ -1,0 +1,48 @@
+from apiroute import Client, Section
+from apiroute.transports.one_shot_transport import OneShotTransport
+from apiroute.transports.transport_registry import TransportRegistry
+
+
+class FakeTransport:
+    def __init__(self):
+        self.closed = False
+
+    def send(self, spec):
+        raise NotImplementedError
+
+    def close(self):
+        self.closed = True
+
+
+class Api(Client):
+    pass
+
+
+class ChildApi(Api):
+    pass
+
+
+def test_default_is_one_shot_and_reused():
+    registry = TransportRegistry()
+    assert isinstance(registry.for_class(Api), OneShotTransport)
+    assert registry.for_class(Api) is registry.for_class(ChildApi)
+
+
+def test_class_registration_applies_to_subclasses_and_beats_the_default():
+    registry = TransportRegistry()
+    default, api = FakeTransport(), FakeTransport()
+    registry.use(default)
+    registry.use(api, Api)
+    assert registry.for_class(ChildApi) is api
+    assert registry.for_class(Section) is default
+
+
+def test_close_all_and_reset():
+    registry = TransportRegistry()
+    default, api = FakeTransport(), FakeTransport()
+    registry.use(default)
+    registry.use(api, Api)
+    registry.close_all()
+    assert default.closed and api.closed
+    registry.reset()
+    assert isinstance(registry.for_class(Api), OneShotTransport)

@@ -1,0 +1,147 @@
+import inspect
+from collections.abc import Callable
+from typing import Annotated, Any, get_origin
+
+from apiroute.argument_targets import ArgumentTarget
+from apiroute.http_method import infer_http_method, normalize_http_method
+from apiroute.path_template import PathTemplate
+from apiroute.request_options import RETURN_MODES
+from apiroute.route_definition import ArgumentBinding, RouteDefinition
+from apiroute.route_definition_error import RouteDefinitionError
+from apiroute.route_spec import RouteSpec
+from apiroute.value_template import ValueTemplate
+
+_VARIADIC = (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
+
+
+class RouteCompiler:
+    """Checks a @route against its method's signature and builds the RouteDefinition."""
+
+    def __init__(self, owner_name: str, route_name: str, func: Callable, spec: RouteSpec):
+        self._label = f"{owner_name}.{route_name}"
+        self._name = route_name
+        self._func = func
+        self._spec = spec
+
+    def compile(self) -> RouteDefinition:
+        try:
+            return self._compile()
+        except (TypeError, ValueError) as error:
+            raise RouteDefinitionError(f"{self._label}: {error}") from error
+
+    def _compile(self) -> RouteDefinition:
+        path = PathTemplate(self._path())
+        query = None if self._spec.query is None else ValueTemplate(self._spec.query)
+        body, literal_body = self._body()
+        signature = inspect.signature(self._func)
+        referenced = set(path.names) | _names(query) | _names(body)
+        has_body_template = body is not None or literal_body is not None
+        bindings, body_param = self._bind_arguments(signature, referenced, has_body_template)
+        return RouteDefinition(
+            name=self._name,
+            http_method=self._http_method(),
+            path=path,
+            query=query,
+            body=body,
+            literal_body=literal_body,
+            body_param=body_param,
+            bindings=bindings,
+            expected=self._expected(),
+            returns=self._returns(),
+            timeout=self._spec.timeout,
+            signature=signature,
+        )
+
+    def _http_method(self) -> str:
+        if self._spec.method is None:
+            return infer_http_method(self._name)
+        return normalize_http_method(self._spec.method)
+
+    def _path(self) -> str:
+        path = self._spec.path
+        return path if path == "" or path.startswith("/") else f"/{path}"
+
+    def _body(self) -> tuple[ValueTemplate | None, str | bytes | None]:
+        body = self._spec.body
+        if isinstance(body, (str, bytes)):
+            return None, body
+        return (None if body is None else ValueTemplate(body)), None
+
+    def _bind_arguments(
+        self, signature: inspect.Signature, referenced: set[str], has_body_template: bool
+    ) -> tuple[tuple[ArgumentBinding, ...], str | None]:
+        bindings: list[ArgumentBinding] = []
+        body_param = None
+        for param in list(signature.parameters.values())[1:]:
+            if param.kind in _VARIADIC:
+                stars = "*" if param.kind is inspect.Parameter.VAR_POSITIONAL else "**"
+                raise TypeError(f"{stars}{param.name} isn't supported; name each argument")
+            target = self._target_of(param)
+            if target is not None and target.location == "body":
+                body_param = self._only_body_param(body_param, param.name, has_body_template)
+            elif target is not None:
+                bindings.append(
+                    ArgumentBinding(param.name, target.location, target.key_for(param.name))
+                )
+            elif param.name in referenced:
+                continue
+            elif param.name == "body" and not has_body_template:
+                body_param = self._only_body_param(body_param, param.name, has_body_template)
+            else:
+                raise TypeError(
+                    f"parameter {param.name!r} isn't used by the path, query or body; "
+                    "annotate it with Query, Header or Body"
+                )
+        return tuple(bindings), body_param
+
+    def _only_body_param(self, current: str | None, name: str, has_body_template: bool) -> str:
+        if has_body_template:
+            raise TypeError(f"parameter {name!r} is a body, but the route has a body template")
+        if current is not None:
+            raise TypeError(f"both {current!r} and {name!r} are bodies")
+        return name
+
+    def _target_of(self, param: inspect.Parameter) -> ArgumentTarget | None:
+        annotation = self._evaluated(param.annotation)
+        if get_origin(annotation) is Annotated:
+            for item in annotation.__metadata__:
+                target = _as_target(item)
+                if target is not None:
+                    return target
+            return None
+        return _as_target(annotation)
+
+    def _evaluated(self, annotation: Any) -> Any:
+        """String annotations (from __future__ import annotations) are evaluated when possible;
+        one that names something not defined yet can't hold a Query, Header or Body anyway."""
+        if not isinstance(annotation, str):
+            return annotation
+        try:
+            return eval(annotation, getattr(self._func, "__globals__", {}))  # noqa: S307
+        except Exception:
+            return None
+
+    def _expected(self) -> frozenset[int] | None:
+        expected = self._spec.expected
+        if expected is None:
+            return None
+        if isinstance(expected, int):
+            return frozenset({expected})
+        return frozenset(expected)
+
+    def _returns(self) -> str:
+        if self._spec.returns not in RETURN_MODES:
+            raise ValueError(f"returns must be one of {RETURN_MODES}")
+        return self._spec.returns
+
+
+def _names(template: ValueTemplate | None) -> frozenset[str]:
+    return frozenset() if template is None else frozenset(template.names)
+
+
+def _as_target(annotation: Any) -> ArgumentTarget | None:
+    if isinstance(annotation, ArgumentTarget):
+        return annotation
+    if isinstance(annotation, type) and issubclass(annotation, ArgumentTarget):
+        return annotation()
+    return None
