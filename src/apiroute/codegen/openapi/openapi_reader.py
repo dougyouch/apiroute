@@ -17,6 +17,10 @@ from apiroute.codegen.plain_text import plain_text
 from apiroute.codegen.python_names import pascal_case, snake_case, unique
 from apiroute.codegen.type_ref import ANY
 
+# Headers apiroute sets itself (from the body format, or the client's auth); OpenAPI says
+# Content-Type, Accept and Authorization header parameters are ignored, and some specs
+# declare them anyway, as required arguments on every call
+_MANAGED_HEADERS = frozenset({"content-type", "accept", "authorization"})
 _METHODS = ("get", "put", "post", "delete", "options", "head", "patch", "trace")
 _FORMS = {"application/x-www-form-urlencoded": "form", "multipart/form-data": "multipart"}
 
@@ -114,6 +118,8 @@ class OpenApiReader:
         by_key: dict[tuple[str, str], dict] = {}
         for parameter in raw:
             parameter = self._resolver.deref(parameter)
+            if parameter.get("in") == "header" and _is_managed_header(parameter["name"]):
+                continue
             if parameter.get("in") in ("path", "query", "header"):
                 by_key[(parameter["in"], parameter["name"])] = parameter
         taken = {"body", "self"}
@@ -170,6 +176,10 @@ class OpenApiReader:
         operation.response_plain = self._mapper.plain(schema)
         if operation.response == ANY:
             operation.response = None
+
+
+def _is_managed_header(name: str) -> bool:
+    return name.lower() in _MANAGED_HEADERS
 
 
 def _pick_media(content: dict) -> str | None:
