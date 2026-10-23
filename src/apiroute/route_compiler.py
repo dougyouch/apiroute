@@ -42,7 +42,7 @@ class RouteCompiler:
         query = None if self._spec.query is None else ValueTemplate(self._spec.query)
         headers = None if self._spec.headers is None else ValueTemplate(self._spec.headers)
         body, literal_body = self._body()
-        signature = inspect.signature(self._func)
+        signature = self._signature()
         referenced = set(path.names) | _names(query) | _names(body) | _names(headers)
         has_body_template = body is not None or literal_body is not None
         stream_param = self._stream_param(signature)
@@ -69,6 +69,14 @@ class RouteCompiler:
             headers=headers,
             body_format=self._body_format(),
         )
+
+    def _signature(self) -> inspect.Signature:
+        """The method's signature, with postponed (string) annotations evaluated when their
+        names exist, so help() and inspect show real types; otherwise left as strings."""
+        try:
+            return inspect.signature(self._func, eval_str=True)
+        except Exception:
+            return inspect.signature(self._func)
 
     def _http_method(self) -> str:
         if self._spec.method is None:

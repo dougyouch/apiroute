@@ -1,0 +1,178 @@
+openapi: 3.1.0
+info:
+  title: Shop API
+  description: A small spec that exercises the generator.
+  version: 1.0.0
+servers:
+  - url: https://{region}.shop.test/v1
+    variables:
+      region:
+        default: eu
+tags:
+  - name: Pets
+    description: Pets for sale.
+  - name: store
+paths:
+  /status:
+    get:
+      operationId: getStatus
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ok: {type: boolean}
+  /pets:
+    get:
+      tags: [Pets]
+      operationId: listPets
+      summary: List pets.
+      parameters:
+        - {name: limit, in: query, schema: {type: integer}}
+        - {name: status, in: query, required: true, schema: {$ref: "#/components/schemas/PetStatus"}}
+        - {name: X-Request-Id, in: header, schema: {type: string}}
+      responses:
+        "200":
+          description: pets
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/Pet"}}
+    post:
+      tags: [Pets]
+      operationId: createPet
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema: {$ref: "#/components/schemas/NewPet"}
+      responses:
+        "201":
+          description: created
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Pet"}
+  /pets/{pet-id}:
+    parameters:
+      - {name: pet-id, in: path, required: true, schema: {type: integer}}
+    get:
+      tags: [Pets]
+      operationId: Pets_getPet
+      responses:
+        "200":
+          description: a pet
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Pet"}
+    delete:
+      tags: [Pets]
+      operationId: deletePet
+      deprecated: true
+      responses:
+        "204": {description: gone}
+  /pets/{pet-id}/photo:
+    parameters:
+      - {name: pet-id, in: path, required: true, schema: {type: integer}}
+    get:
+      tags: [Pets]
+      operationId: getPhoto
+      responses:
+        "200":
+          description: jpeg
+          content:
+            image/jpeg: {schema: {type: string, format: binary}}
+    put:
+      tags: [Pets]
+      operationId: uploadPhoto
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file: {type: string, format: binary}
+                caption: {type: string}
+      responses:
+        "204": {description: stored}
+  /orders:
+    post:
+      tags: [store]
+      operationId: placeOrder
+      requestBody:
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              required: [pet_id]
+              properties:
+                pet_id: {type: integer}
+                quantity: {type: integer}
+      responses:
+        "200":
+          description: order
+          content:
+            application/json:
+              schema: {$ref: "./common.yaml#/Order"}
+  /orders/{id}/receipt:
+    get:
+      tags: [store]
+      operationId: list
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: text receipt
+          content:
+            text/plain: {schema: {type: string}}
+components:
+  securitySchemes:
+    bearer: {type: http, scheme: bearer}
+    apiKey: {type: apiKey, in: header, name: X-Api-Key}
+    partner: {type: apiKey, in: query, name: partner_key}
+  schemas:
+    PetStatus:
+      type: string
+      enum: [available, sold]
+    Animal:
+      type: object
+      required: [name]
+      properties:
+        name: {type: string}
+        tags: {type: array, items: {type: string}}
+    NewPet:
+      allOf:
+        - $ref: "#/components/schemas/Animal"
+        - type: object
+          properties:
+            status: {$ref: "#/components/schemas/PetStatus"}
+    Pet:
+      description: A pet for sale.
+      allOf:
+        - $ref: "#/components/schemas/NewPet"
+        - type: object
+          required: [id]
+          properties:
+            id: {type: integer}
+            createdAt: {type: [string, "null"], description: When it arrived.}
+            owner: {$ref: "#/components/schemas/Owner"}
+            from: {type: string}
+            kind:
+              oneOf:
+                - {$ref: "#/components/schemas/Dog"}
+                - {$ref: "#/components/schemas/Cat"}
+    Owner:
+      type: object
+      nullable: true
+      properties:
+        name: {type: string}
+        pets: {type: array, items: {$ref: "#/components/schemas/Pet"}}
+    Dog:
+      type: object
+      properties:
+        barks: {type: boolean}
+    Cat:
+      type: object
+      properties:
+        lives: {type: integer}

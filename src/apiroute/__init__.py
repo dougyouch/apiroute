@@ -5,6 +5,7 @@ from apiroute.argument_targets import Body, Header, Query
 from apiroute.client import Client
 from apiroute.from_client import FROM_CLIENT
 from apiroute.lazy_attribute import lazy
+from apiroute.lazy_exports import lazy_exports
 from apiroute.namespace import namespace
 from apiroute.request_spec import RequestSpec
 from apiroute.response_validation_error import ResponseValidationError
@@ -55,6 +56,7 @@ __all__ = [
     "aclose_transports",
     "close_transports",
     "lazy",
+    "lazy_exports",
     "namespace",
     "route",
     "use_transport",
