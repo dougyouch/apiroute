@@ -4,7 +4,7 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
-## [1.0.0] - Unreleased
+## [1.0.0] - 2026-10-23
 
 The first release: a Python port of the Ruby gem
 [client-api-builder](https://github.com/dougyouch/client-api-builder), with
@@ -53,3 +53,5 @@ connection handling separated from the API definition.
 - `http`/`https`-only base URLs with a host; path values percent-encoded per
   segment; URLs joined rather than resolved; TLS verified by default
 - Streamed file paths with a null byte or `..` segment rejected
+
+[1.0.0]: https://github.com/dougyouch/apiroute/releases/tag/v1.0.0
