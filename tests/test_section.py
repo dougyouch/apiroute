@@ -120,3 +120,39 @@ def test_inherit_still_rejects_other_settings():
 
         class Bad(Section):
             inherit = ("base_url",)
+
+
+class MovedApi(Client):
+    base_url = "https://old.x.test"
+    follow_redirects = True
+
+    get = route("/a")
+
+    class nested(Section):
+        get = route("/b")
+
+    class stays(Section):
+        follow_redirects = False
+        get = route("/c")
+
+
+def test_follow_redirects_is_sent_with_each_request_and_sections_take_their_parents():
+    api = MovedApi()
+    assert api._request_config().follow_redirects is True
+    assert api.nested._request_config().follow_redirects is True
+    assert api.stays._request_config().follow_redirects is False
+    assert Api()._request_config().follow_redirects is None
+
+
+def test_a_redirect_is_followed_only_when_the_client_asks(transport, recorder):
+    moved = httpx.Response(302, headers={"Location": "https://new.x.test/a"})
+    recorder.respond(moved, httpx.Response(200, json={"moved": True}))
+    assert MovedApi(transport=transport).get() == {"moved": True}
+    assert [str(r.url) for r in recorder.requests] == [
+        "https://old.x.test/a",
+        "https://new.x.test/a",
+    ]
+
+    recorder.respond(moved)
+    with pytest.raises(UnexpectedResponse, match="unexpected status 302"):
+        MovedApi(transport=transport).stays.get()

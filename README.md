@@ -239,6 +239,7 @@ The first three derive from `ApiRouteError`. `client.last_response` holds the mo
 | `retries` | `Retries()` (one attempt) |
 | `body_format` | `"json"`, `"form"` or `callable(client, data)` |
 | `query_format` | `"flat"`, `"nested"` (`a[b]=1`) or `callable(client, data)` returning pairs |
+| `follow_redirects` | `None`: the transport's httpx setting (httpx doesn't follow). `True` follows 3xx answers for this API whatever the transport; a section uses its parent's unless it sets one |
 
 ### Methods to override
 

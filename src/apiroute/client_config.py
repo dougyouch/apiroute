@@ -18,6 +18,7 @@ CONFIG_ATTRIBUTES = (
     "query_format",
     "inherit",
     "compile_routes",
+    "follow_redirects",
 )
 
 # These merge down the class hierarchy, as the gem's header and query_param calls do;
@@ -43,6 +44,9 @@ class ClientConfig:
     # "eager" checks every route when the class is created; "lazy" waits for first use,
     # which generated clients with thousands of routes rely on to load quickly
     compile_routes: str = "eager"
+    # Follow 3xx answers (httpx doesn't by default); None leaves it to the transport. Like
+    # base_url a property of the host, so a section takes its parent's unless it sets one
+    follow_redirects: bool | None = None
     # The settings a class in the chain set itself, as opposed to defaults: an inherited retries
     # or timeout gives way to the section's own only when the section set one
     explicit: frozenset[str] = frozenset()
@@ -59,6 +63,8 @@ class ClientConfig:
     def for_section(self, parent: "ClientConfig", root: "ClientConfig") -> "ClientConfig":
         """This (a section's) config, with its parent's base_url and what it inherits from root."""
         changes: dict[str, Any] = {"base_url": self.base_url or parent.base_url}
+        if "follow_redirects" not in self.explicit:
+            changes["follow_redirects"] = parent.follow_redirects
         for name in self.inherit:
             if name in MERGED_ATTRIBUTES:
                 changes[name] = {**getattr(root, name), **getattr(self, name)}
@@ -90,6 +96,8 @@ class ClientConfig:
             raise ValueError(f"query_format must be one of {QUERY_FORMATS} or a callable")
         if not isinstance(self.retries, Retries):
             raise ValueError("retries must be a Retries")
+        if self.follow_redirects not in (None, True, False):
+            raise ValueError("follow_redirects must be True, False or None")
         if self.compile_routes not in ("eager", "lazy"):
             raise ValueError("compile_routes must be 'eager' or 'lazy'")
         if not self.inherit <= INHERITABLE:
