@@ -78,7 +78,12 @@ class RouteExecutor:
         definition = self._definition
         returns = self._options.returns or definition.returns
         return ResponseReader(
-            definition.name, definition.expected, returns, definition.converter, definition.decoder
+            definition.name,
+            definition.expected,
+            returns,
+            definition.converter,
+            definition.decoder,
+            redact_url=self._root.redact_url,
         )
 
     def _stream_reader(self, values: Mapping[str, Any]) -> StreamReader:
@@ -104,6 +109,7 @@ class RouteExecutor:
     def _after(self, spec: RequestSpec, response: httpx.Response, started: float) -> Any:
         self._root.last_response = response
         self._root.on_response(spec, response, time.perf_counter() - started)
+        self._root.check_response(spec, response)
         return response
 
     def _retries(self, config: ClientConfig) -> Retries:

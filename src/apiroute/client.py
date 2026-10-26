@@ -13,9 +13,11 @@ from apiroute.router import Router
 from apiroute.transport_configuration import ASYNC_TRANSPORTS, TRANSPORTS, is_async_transport
 from apiroute.transports.async_transport import AsyncTransport
 from apiroute.transports.transport import Transport
+from apiroute.url_redactor import UrlRedactor
 
 # Network failures worth another attempt; other errors (bad URL, TLS) won't fix themselves
 RETRYABLE_ERRORS = (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)
+_URL_REDACTOR = UrlRedactor()
 
 
 class Client(Router):
@@ -66,9 +68,21 @@ class Client(Router):
         stream, once the status is in and before the body is read. Use it for metrics or
         logging. Network errors don't reach it; they are logged by the retry policy."""
 
+    def check_response(self, request: RequestSpec, response: httpx.Response) -> None:
+        """Runs after every response, inside the retry loop and before the status is checked;
+        for a stream, before the body is read. Raise to reject a response, e.g. a 200 whose body
+        says the call was rate limited: the exception goes through should_retry like any other
+        failure, so retry it there or let it propagate. Return to accept the response."""
+
     def escape_path(self, value: Any) -> str:
         """Every path value is escaped so it stays one segment; override to allow '/'."""
         return quote(str(value), safe="")
+
+    def redact_url(self, url: str) -> str:
+        """The URL as error messages and log lines show it. By default, query values whose names
+        look secret ("api_key", "token") and a userinfo password are masked; override to mask a
+        key elsewhere, such as in the path. The exception's .request keeps the real URL."""
+        return _URL_REDACTOR.redact(url)
 
     @property
     def _root(self) -> "Client":

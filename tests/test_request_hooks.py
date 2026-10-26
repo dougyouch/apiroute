@@ -93,3 +93,60 @@ def test_hooks_see_the_operation_name(transport, recorder):
     api.list_things()
     api.get_other()
     assert seen == ["listThings", "get_other"]
+
+
+class RateLimitedBody(Exception):
+    pass
+
+
+class QuotaSpent(Exception):
+    pass
+
+
+class BodyCodedApi(Client):
+    """An API that answers 200 with an error code in the body when it rate limits."""
+
+    base_url = "https://x.test"
+    retries = Retries(attempts=3, sleep=0)
+
+    def check_response(self, request, response):
+        code = response.json().get("code") if response.content else None
+        if code == 4029:
+            raise RateLimitedBody(request.operation)
+        if code == 4030:
+            raise QuotaSpent()
+
+    def should_retry(self, error, attempt):
+        return isinstance(error, RateLimitedBody) or super().should_retry(error, attempt)
+
+    @route("/things")
+    def get_things(self): ...
+
+
+@pytest.fixture
+def coded(transport, async_transport):
+    return BodyCodedApi(transport=transport, async_transport=async_transport)
+
+
+def test_check_response_can_send_a_200_back_through_the_retry_loop(coded, recorder):
+    recorder.respond(httpx.Response(200, json={"code": 4029}), httpx.Response(200, json={"ok": 1}))
+    assert coded.get_things() == {"ok": 1}
+    assert len(recorder.requests) == 2
+
+
+def test_what_check_response_raises_propagates_when_not_retried(coded, recorder):
+    recorder.respond(httpx.Response(200, json={"code": 4030}))
+    with pytest.raises(QuotaSpent):
+        coded.get_things()
+    assert len(recorder.requests) == 1
+
+
+def test_check_response_runs_before_the_status_check(coded, recorder):
+    recorder.respond(httpx.Response(429, json={"code": 4029}), httpx.Response(200, json={"ok": 1}))
+    assert coded.get_things() == {"ok": 1}
+
+
+@pytest.mark.anyio
+async def test_check_response_runs_on_async_calls_too(coded, recorder):
+    recorder.respond(httpx.Response(200, json={"code": 4029}), httpx.Response(200, json={"ok": 2}))
+    assert await coded.aio.get_things() == {"ok": 2}
