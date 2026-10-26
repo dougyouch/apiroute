@@ -141,3 +141,36 @@ def test_redact_url_can_be_overridden_for_a_key_in_the_path(transport, recorder)
     with pytest.raises(UnexpectedResponse) as raised:
         PathKeyed(transport=transport).call({"method": "x"})
     assert "k3y" not in str(raised.value) and "/v2/***" in str(raised.value)
+
+
+class QueryKeyedApi(Client):
+    """A provider whose endpoint carries its key in the query, e.g. https://rpc.test/?api-key=..."""
+
+    query_params = {"cluster": "main"}
+
+    @route("POST", "")
+    def call(self, body: dict) -> dict: ...
+
+    @route("/v1/things", query={"page": "{page}"})
+    def things(self, page: int) -> dict: ...
+
+
+def test_a_query_string_in_base_url_reaches_the_wire_and_comes_first(transport, recorder):
+    api = QueryKeyedApi(base_url="https://rpc.test/?api-key=k3y&flag", transport=transport)
+    api.call({"method": "x"})
+    assert str(recorder.last.url) == "https://rpc.test?api-key=k3y&flag=&cluster=main"
+    api.things(page=2)
+    assert recorder.last.url.path == "/v1/things"
+    assert list(recorder.last.url.params.multi_items()) == [
+        ("api-key", "k3y"),
+        ("flag", ""),
+        ("cluster", "main"),
+        ("page", "2"),
+    ]
+
+
+def test_an_error_masks_a_key_from_base_urls_query(transport, recorder):
+    recorder.respond(httpx.Response(500))
+    with pytest.raises(UnexpectedResponse) as raised:
+        QueryKeyedApi(base_url="https://rpc.test/?api-key=k3y", transport=transport).call({})
+    assert "k3y" not in str(raised.value) and "api-key=***" in str(raised.value)
