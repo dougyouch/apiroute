@@ -4,6 +4,21 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.4.0](https://github.com/dougyouch/apiroute/compare/v1.3.0...v1.4.0) (2026-10-26)
+
+
+### Features
+
+* **codegen:** --base-url for specs with a relative server URL ([231fed4](https://github.com/dougyouch/apiroute/commit/231fed43993622ad3ac06013c7bda7dda071d3bf))
+* **codegen:** --base-url, and sections inherit the client's retries and timeout ([e4190fe](https://github.com/dougyouch/apiroute/commit/e4190fef1cde96517364f591c8a544dfc0bdaea1))
+* sections can inherit the client's retries and timeout ([e58c0e0](https://github.com/dougyouch/apiroute/commit/e58c0e0e3e0b0f30d3e526535bc08d24cd45b0fc))
+
+
+### Bug Fixes
+
+* **codegen:** don't repeat the API description in every section ([3fa8cdd](https://github.com/dougyouch/apiroute/commit/3fa8cdd9a6a80431fd23e37ad207366e5958f3c7))
+* **codegen:** generated imports pass ruff in the consuming project ([f43f130](https://github.com/dougyouch/apiroute/commit/f43f130cf71b7be379ae8a948d315c130aea78e5))
+
 ## [1.3.0](https://github.com/dougyouch/apiroute/compare/v1.2.1...v1.3.0) (2026-10-26)
 
 
