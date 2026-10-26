@@ -78,7 +78,10 @@ class DictClientEmitter:
             base = self._base_class[1]
         out.line(f"class {self._group.class_name}({base}):")
         with out.indented():
-            doc = self._group.description or self._definition.description
+            # A section without its own (tag) description gets the short module docstring, not
+            # the whole API's description repeated in every section
+            fallback = self._definition.description if self._is_root else None
+            doc = self._group.description or fallback
             out.docstring(doc or self._module_doc())
             out.line()
             self._settings(out)
