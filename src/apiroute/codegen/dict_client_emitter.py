@@ -54,7 +54,9 @@ class DictClientEmitter:
             standard.append(f"from typing import {import_names(typing_names)}")
         if standard:
             out.lines(*standard, "")
-        names = [n for n in ("Header", "Query", "lazy", "route") if _mentions(body, n)]
+        names = [n for n in ("Header", "Query", "route") if _mentions(body, n)]
+        if re.search(r"\blazy\(", body):  # not the word in compile_routes = "lazy"
+            names.append("lazy")
         if not self._is_root:
             names.append("Section")
         elif self._base_class is None:
@@ -64,8 +66,9 @@ class DictClientEmitter:
         if soap:
             out.line(f"from apiroute.soap import {import_names(soap)}")
         if self._base_class is not None:
+            # the user's own code: a first-party block of its own, as isort orders it
             module, name = self._base_class
-            out.line(f"from {module} import {name}")
+            out.lines("", f"from {module} import {name}")
 
     def _body_text(self) -> str:
         out = SourceWriter()

@@ -21,7 +21,12 @@ def main(argv: list[str] | None = None) -> int:
             validate_base_url(arguments.base_url)
             definition.base_url = arguments.base_url.rstrip("/")
         written = PackageEmitter(definition, with_models=arguments.models).write(out_dir)
-        formatted = not arguments.no_format and SourceFormatter().format(written)
+        first_party = (
+            [arguments.base_class.split(":")[0].split(".")[0]] if arguments.base_class else []
+        )
+        formatted = not arguments.no_format and SourceFormatter().format(
+            written, first_party=first_party
+        )
     except (OSError, ValueError, KeyError, RuntimeError, httpx.HTTPError) as error:
         # The CLI is the boundary: report the reason, not a traceback
         print(f"apiroute: {type(error).__name__}: {error}", file=sys.stderr)
