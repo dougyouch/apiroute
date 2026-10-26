@@ -4,6 +4,7 @@ from pathlib import Path
 
 import httpx
 
+from apiroute.base_url_validator import validate_base_url
 from apiroute.codegen.package_emitter import PackageEmitter
 from apiroute.codegen.python_names import pascal_case
 from apiroute.codegen.source_formatter import SourceFormatter
@@ -16,6 +17,9 @@ def main(argv: list[str] | None = None) -> int:
     try:
         definition = _reader(arguments.format, arguments.spec, client_name).read()
         definition.base_class = arguments.base_class
+        if arguments.base_url is not None:
+            validate_base_url(arguments.base_url)
+            definition.base_url = arguments.base_url.rstrip("/")
         written = PackageEmitter(definition, with_models=arguments.models).write(out_dir)
         formatted = not arguments.no_format and SourceFormatter().format(written)
     except (OSError, ValueError, KeyError, RuntimeError, httpx.HTTPError) as error:
@@ -51,6 +55,12 @@ def _parser() -> argparse.ArgumentParser:
         metavar="MODULE:CLASS",
         help="a hand-written Client subclass for the root client to extend, which owns auth "
         "(e.g. myapi.auth:MyAuth); the spec's security schemes are then not generated",
+    )
+    generate.add_argument(
+        "--base-url",
+        metavar="URL",
+        help="the root client's base_url, overriding the spec's servers; needed for a spec read "
+        "from a file whose server URL is relative (e.g. /api/v2)",
     )
     generate.add_argument(
         "--no-format",
