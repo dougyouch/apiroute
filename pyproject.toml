@@ -1,6 +1,6 @@
 [project]
 name = "apiroute"
-version = "1.3.0"
+version = "1.4.0"
 description = "Build API clients declaratively: one @route per endpoint, safe defaults, httpx underneath."
 readme = "README.md"
 license = "MIT"
