@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.0](https://github.com/dougyouch/apiroute/compare/v1.4.0...v1.5.0) (2026-10-26)
+
+
+### Features
+
+* follow_redirects client setting, sent with each request ([44eab2f](https://github.com/dougyouch/apiroute/commit/44eab2f236f598f4e51e8089fd4927b3dd7d7ecc))
+* follow_redirects client setting, sent with each request ([5272aa0](https://github.com/dougyouch/apiroute/commit/5272aa0ea8df648ac6bc87e45c6c86f4c836c998))
+
 ## [1.4.0](https://github.com/dougyouch/apiroute/compare/v1.3.0...v1.4.0) (2026-10-26)
 
 
