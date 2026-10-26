@@ -1,4 +1,7 @@
-from apiroute import Client, Query, Section, route
+import httpx
+import pytest
+
+from apiroute import Client, Query, Retries, Section, UnexpectedResponse, route
 
 
 class Api(Client):
@@ -56,3 +59,64 @@ def test_subclass_of_the_client_keeps_its_sections(transport, recorder):
 
     Child(transport=transport).issues.list()
     assert recorder.last.headers["Authorization"] == "Bearer child"
+
+
+class PolicyApi(Client):
+    base_url = "https://x.test"
+    retries = Retries(attempts=3, sleep=0)
+    timeout = 7
+
+    def should_retry(self, error, attempt):
+        return isinstance(error, UnexpectedResponse) and error.status_code == 503
+
+    class inheriting(Section):
+        inherit = ("retries", "timeout")
+        get = route("/a")
+
+    class own(Section):
+        inherit = ("retries", "timeout")
+        retries = Retries(attempts=1)
+        get = route("/b")
+
+    class plain(Section):
+        get = route("/c")
+
+
+def _answers(recorder, count):
+    recorder.respond(*[httpx.Response(503)] * count, httpx.Response(200, json={}))
+
+
+def test_a_section_inheriting_retries_and_timeout_uses_the_root_clients(transport, recorder):
+    api = PolicyApi(transport=transport)
+    _answers(recorder, 2)
+    api.inheriting.get()
+    assert len(recorder.requests) == 3
+    assert api.inheriting._request_config().timeout == 7
+
+
+def test_a_root_subclass_policy_reaches_inheriting_sections(transport, recorder):
+    class Stricter(PolicyApi):
+        retries = Retries(attempts=1)
+
+    _answers(recorder, 1)
+    with pytest.raises(UnexpectedResponse):
+        Stricter(transport=transport).inheriting.get()
+
+
+def test_a_section_setting_its_own_keeps_it_and_one_not_inheriting_gets_the_defaults(
+    transport, recorder
+):
+    api = PolicyApi(transport=transport)
+    _answers(recorder, 1)
+    with pytest.raises(UnexpectedResponse):
+        api.own.get()
+    assert api.own._request_config().timeout == 7
+    assert api.plain._request_config().retries == Retries()
+    assert api.plain._request_config().timeout == 30.0
+
+
+def test_inherit_still_rejects_other_settings():
+    with pytest.raises(ValueError, match="inherit may only list"):
+
+        class Bad(Section):
+            inherit = ("base_url",)

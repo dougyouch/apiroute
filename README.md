@@ -200,7 +200,7 @@ api.users.list()
 api.uploads.create(body=data)
 ```
 
-- A section uses its parent's `base_url` unless it sets one. It inherits nothing else unless listed in `inherit` (`"headers"`, `"query_params"`), as in the gem.
+- A section uses its parent's `base_url` unless it sets one. It inherits nothing else unless listed in `inherit`, as in the gem: `"headers"` and `"query_params"` merge under the section's own, and `"retries"` and `"timeout"` are the root client's unless the section sets its own. Generated sections inherit all four, so a client's retry and timeout policy, from `--base-class` or a subclass, covers every route.
 - `{name}` placeholders, callable headers, the overridable methods and the transport all belong to the root client, so a section can use the client's state.
 - Sections nest, are created once per client, and remain reachable as classes (`Api.users`).
 

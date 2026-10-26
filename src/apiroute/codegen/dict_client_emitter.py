@@ -100,7 +100,8 @@ class DictClientEmitter:
             out.line(f"base_url = {py_str(self._definition.base_url)}")
         out.line('compile_routes = "lazy"')
         if not self._is_root:
-            out.line('inherit = ("headers", "query_params")  # the client\'s auth')
+            # the client's auth, and its retry and timeout policy
+            out.line('inherit = ("headers", "query_params", "retries", "timeout")')
         if self._is_root and self._base_class is None:
             self._auth_settings(out)
 

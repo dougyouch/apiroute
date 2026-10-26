@@ -24,7 +24,9 @@ CONFIG_ATTRIBUTES = (
 # the rest are replaced by a subclass
 MERGED_ATTRIBUTES = ("headers", "query_params")
 
-INHERITABLE = frozenset({"headers", "query_params"})
+# What a section may take from its root client with `inherit`. headers and query_params are
+# merged under the section's own; retries and timeout are the root's unless the section sets one
+INHERITABLE = frozenset({"headers", "query_params", "retries", "timeout"})
 
 
 @dataclass(frozen=True)
@@ -41,6 +43,9 @@ class ClientConfig:
     # "eager" checks every route when the class is created; "lazy" waits for first use,
     # which generated clients with thousands of routes rely on to load quickly
     compile_routes: str = "eager"
+    # The settings a class in the chain set itself, as opposed to defaults: an inherited retries
+    # or timeout gives way to the section's own only when the section set one
+    explicit: frozenset[str] = frozenset()
 
     @classmethod
     def from_class(cls, router_class: type) -> "ClientConfig":
@@ -55,11 +60,15 @@ class ClientConfig:
         """This (a section's) config, with its parent's base_url and what it inherits from root."""
         changes: dict[str, Any] = {"base_url": self.base_url or parent.base_url}
         for name in self.inherit:
-            changes[name] = {**getattr(root, name), **getattr(self, name)}
+            if name in MERGED_ATTRIBUTES:
+                changes[name] = {**getattr(root, name), **getattr(self, name)}
+            elif name not in self.explicit:
+                changes[name] = getattr(root, name)
         return replace(self, **changes)
 
     def _extended(self, own: dict[str, Any], owner: str) -> "ClientConfig":
-        changes = dict(own)
+        changes: dict[str, Any] = dict(own)
+        changes["explicit"] = self.explicit | frozenset(own)
         for name in MERGED_ATTRIBUTES:
             if name in own:
                 changes[name] = _merged_dict(getattr(self, name), own[name])
