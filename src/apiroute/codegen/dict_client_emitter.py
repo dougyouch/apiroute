@@ -54,7 +54,9 @@ class DictClientEmitter:
             standard.append(f"from typing import {import_names(typing_names)}")
         if standard:
             out.lines(*standard, "")
-        names = [n for n in ("Header", "Query", "lazy", "route") if _mentions(body, n)]
+        names = [n for n in ("Header", "Query", "route") if _mentions(body, n)]
+        if re.search(r"\blazy\(", body):  # not the word in compile_routes = "lazy"
+            names.append("lazy")
         if not self._is_root:
             names.append("Section")
         elif self._base_class is None:
@@ -64,8 +66,9 @@ class DictClientEmitter:
         if soap:
             out.line(f"from apiroute.soap import {import_names(soap)}")
         if self._base_class is not None:
+            # the user's own code: a first-party block of its own, as isort orders it
             module, name = self._base_class
-            out.line(f"from {module} import {name}")
+            out.lines("", f"from {module} import {name}")
 
     def _body_text(self) -> str:
         out = SourceWriter()
@@ -78,7 +81,10 @@ class DictClientEmitter:
             base = self._base_class[1]
         out.line(f"class {self._group.class_name}({base}):")
         with out.indented():
-            doc = self._group.description or self._definition.description
+            # A section without its own (tag) description gets the short module docstring, not
+            # the whole API's description repeated in every section
+            fallback = self._definition.description if self._is_root else None
+            doc = self._group.description or fallback
             out.docstring(doc or self._module_doc())
             out.line()
             self._settings(out)
@@ -94,7 +100,8 @@ class DictClientEmitter:
             out.line(f"base_url = {py_str(self._definition.base_url)}")
         out.line('compile_routes = "lazy"')
         if not self._is_root:
-            out.line('inherit = ("headers", "query_params")  # the client\'s auth')
+            # the client's auth, and its retry and timeout policy
+            out.line('inherit = ("headers", "query_params", "retries", "timeout")')
         if self._is_root and self._base_class is None:
             self._auth_settings(out)
 

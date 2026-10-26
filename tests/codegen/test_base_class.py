@@ -14,13 +14,17 @@ from apiroute.codegen.wsdl.wsdl_reader import WsdlReader
 from tests.codegen.conftest import FIXTURES
 
 AUTH = '''
-    from apiroute import Client
+    from apiroute import Client, Retries, UnexpectedResponse
 
 
     class ShopAuth(Client):
-        """Hand-written: regenerating the client never touches it."""
+        """Hand-written: regenerating the client never touches it. Owns auth and retry policy."""
 
         headers = {"Authorization": lambda self: f"Token {self.secret}"}
+        retries = Retries(attempts=2, sleep=0)
+
+        def should_retry(self, error, attempt):
+            return isinstance(error, UnexpectedResponse) and error.status_code == 503
 
         def __init__(self, secret, **kwargs):
             super().__init__(**kwargs)
@@ -75,6 +79,17 @@ def test_the_root_extends_the_base_class_and_skips_spec_auth(build, recorder):
     )
     api.pets.get_pet(1)  # a section: the base class's headers reach it
     assert recorder.last.headers["Authorization"] == "Token s3cret"
+
+
+def test_the_base_classs_retry_policy_covers_generated_sections(build, recorder):
+    shop = build(OpenApiReader(str(FIXTURES / "shop.yaml"), "ShopApi"), "shop_retries")
+    api = shop.ShopApi(
+        "s3cret",
+        transport=HttpxClientTransport(httpx.Client(transport=httpx.MockTransport(recorder))),
+    )
+    recorder.respond(httpx.Response(503), httpx.Response(200, json={"id": 1, "name": "Rex"}))
+    assert api.pets.get_pet(1)["name"] == "Rex"
+    assert len(recorder.requests) == 2
 
 
 def test_operation_ids_are_kept_for_hooks(build):

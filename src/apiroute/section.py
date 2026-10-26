@@ -8,8 +8,9 @@ class Section(Router):
     """A group of routes nested in a client class, reached as client.<class name>.
 
     It uses its parent's base_url unless it sets one, and only the settings named in
-    `inherit` ("headers", "query_params") from the root client. {name} placeholders and
-    callable headers resolve against the root client.
+    `inherit` from the root client: "headers" and "query_params" merged under its own, and
+    "retries" and "timeout" unless it sets its own. {name} placeholders and callable headers
+    resolve against the root client.
     """
 
     _is_section = True

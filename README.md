@@ -200,7 +200,7 @@ api.users.list()
 api.uploads.create(body=data)
 ```
 
-- A section uses its parent's `base_url` unless it sets one. It inherits nothing else unless listed in `inherit` (`"headers"`, `"query_params"`), as in the gem.
+- A section uses its parent's `base_url` unless it sets one. It inherits nothing else unless listed in `inherit`, as in the gem: `"headers"` and `"query_params"` merge under the section's own, and `"retries"` and `"timeout"` are the root client's unless the section sets its own. Generated sections inherit all four, so a client's retry and timeout policy, from `--base-class` or a subclass, covers every route.
 - `{name}` placeholders, callable headers, the overridable methods and the transport all belong to the root client, so a section can use the client's state.
 - Sections nest, are created once per client, and remain reachable as classes (`Api.users`).
 
@@ -410,6 +410,7 @@ Nothing is imported until it's used. On GitHub's spec (1,242 operations, 4,035 m
               request, params=[*request.params, ("callname", request.operation)]
           )
   ```
+- **A relative server URL needs a host.** A spec read from a URL resolves a relative `servers` entry (`/api/v2`) against the spec's own address. Read from a file, it can't, so pass the host: `--base-url https://api.example.com/api/v2`. The option also overrides the spec's servers.
 - **Output passes `ruff check` and `ruff format`.** When ruff is installed, the generator runs it over the output; `--no-format` skips that.
 - **OpenAPI:** tags become sections, `operationId`s become method names, and path, query and header parameters become arguments. Bodies can be JSON, form or multipart; responses can be JSON, text or binary. Schemas become models, with `allOf` merged, `oneOf`/`anyOf` as unions and enums as `Literal`. Bearer, basic and API key auth become constructor arguments.
 - **WSDL:** each operation becomes a POST route with its `SOAPAction`. Bodies are dicts in the xmltodict shape: child elements as keys, `"@attr"` for attributes, `"#text"` for text content, and `"{namespace}local"` for an element from another namespace. Faults raise `apiroute.soap.SoapFault`. XML is parsed with `defusedxml`.

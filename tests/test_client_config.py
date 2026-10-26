@@ -33,7 +33,7 @@ def test_other_settings_are_replaced():
         ("body_format", "xml", "body_format"),
         ("query_format", "rails", "query_format"),
         ("retries", 3, "Retries"),
-        ("inherit", ("timeout",), "inherit"),
+        ("inherit", ("base_url",), "inherit"),
     ],
 )
 def test_invalid_settings_fail_at_class_creation(attribute, value, message):
