@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.2.1](https://github.com/dougyouch/apiroute/compare/v1.2.0...v1.2.1) (2026-10-23)
+
+
+### Documentation
+
+* add AGENT.md, CLAUDE.md and the apiroute-client skill ([e435dc0](https://github.com/dougyouch/apiroute/commit/e435dc02c005d79fd970a661c0c556b7e9ed312b))
+* make agent docs API-agnostic, with eBay only as an example ([1ae7b5b](https://github.com/dougyouch/apiroute/commit/1ae7b5b82913cdaede5afc1f35e65b0e4c7ea916))
+
 ## [1.2.0](https://github.com/dougyouch/apiroute/compare/v1.1.0...v1.2.0) (2026-10-23)
 
 
