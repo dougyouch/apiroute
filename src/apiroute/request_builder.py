@@ -1,5 +1,6 @@
 from collections.abc import Mapping
 from typing import Any
+from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 from apiroute.body_encoder import BodyEncoder
 from apiroute.client_config import ClientConfig
@@ -14,7 +15,8 @@ class RequestBuilder:
     """Turns a route, the call's values and the config into a RequestSpec. No I/O.
 
     Later values win: class config, then the route, then its annotated arguments, then
-    with_options. A None header or query value at any level leaves it out. A with_options
+    with_options. A None header or query value at any level leaves it out. A query string in
+    base_url itself is kept and sent first. A with_options
     body is shallow-merged over the route's body when both are dicts, and replaces it otherwise.
     """
 
@@ -41,7 +43,8 @@ class RequestBuilder:
         if self._config.base_url is None:
             raise ValueError(f"{definition.name}: no base_url is configured")
         path = definition.path.render(resolve, self._root.escape_path)
-        return self._config.base_url.rstrip("/") + path
+        base = urlsplit(self._config.base_url)._replace(query="", fragment="")
+        return urlunsplit(base).rstrip("/") + path
 
     def _headers(
         self, definition: RouteDefinition, values: Mapping[str, Any], content_type: str | None
@@ -69,9 +72,15 @@ class RequestBuilder:
             query.update(definition.query.render(resolve))
         query.update(self._bound(definition, values, "query"))
         query.update(self._options.query or {})
-        return self._encode_query(
+        encoded = self._encode_query(
             {name: value for name, value in query.items() if value is not None}
         )
+        return self._base_url_params() + list(encoded)
+
+    def _base_url_params(self) -> list[tuple[str, str]]:
+        """A base_url's own query (a provider key such as ?api-key=...), sent first. httpx replaces
+        a URL's query with `params`, so it has to travel as params to reach the wire."""
+        return parse_qsl(urlsplit(self._config.base_url or "").query, keep_blank_values=True)
 
     def _encode_query(self, query: dict[str, Any]) -> list[tuple[str, str]]:
         if callable(self._config.query_format):

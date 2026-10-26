@@ -233,7 +233,7 @@ The first three derive from `ApiRouteError`. `client.last_response` holds the mo
 
 | Attribute | Default |
 | --- | --- |
-| `base_url` | none; http or https only |
+| `base_url` | none; http or https only. A query string in it (a provider key such as `?api-key=...`) is kept and sent first |
 | `headers`, `query_params` | `{}`. Values may be callables taking the client. Both merge down subclasses, and `None` removes a key |
 | `timeout` | `30` seconds |
 | `retries` | `Retries()` (one attempt) |
