@@ -109,6 +109,7 @@ class RouteExecutor:
     def _after(self, spec: RequestSpec, response: httpx.Response, started: float) -> Any:
         self._root.last_response = response
         self._root.on_response(spec, response, time.perf_counter() - started)
+        self._root.check_response(spec, response)
         return response
 
     def _retries(self, config: ClientConfig) -> Retries:

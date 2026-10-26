@@ -68,6 +68,12 @@ class Client(Router):
         stream, once the status is in and before the body is read. Use it for metrics or
         logging. Network errors don't reach it; they are logged by the retry policy."""
 
+    def check_response(self, request: RequestSpec, response: httpx.Response) -> None:
+        """Runs after every response, inside the retry loop and before the status is checked;
+        for a stream, before the body is read. Raise to reject a response, e.g. a 200 whose body
+        says the call was rate limited: the exception goes through should_retry like any other
+        failure, so retry it there or let it propagate. Return to accept the response."""
+
     def escape_path(self, value: Any) -> str:
         """Every path value is escaped so it stays one segment; override to allow '/'."""
         return quote(str(value), safe="")

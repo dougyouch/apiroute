@@ -246,6 +246,7 @@ The first three derive from `ApiRouteError`. `client.last_response` holds the mo
 | --- | --- | --- |
 | `on_request(self, request)` | before every attempt, sync or async; may return a changed `RequestSpec` | sends the request as is |
 | `on_response(self, request, response, elapsed)` | after every response, whatever its status; for streams, before the body is read | nothing |
+| `check_response(self, request, response)` | after `on_response`, inside the retry loop and before the status check; raise to reject the response | accepts it |
 | `should_retry(self, error, attempt)` | when an attempt fails | retries httpx timeouts, network and protocol errors |
 | `escape_path(self, value)` | for every path value | percent-encodes everything but `A-Z a-z 0-9 - . _ ~` |
 | `redact_url(self, url)` | for the URL in an `UnexpectedResponse` message, and so in retry log lines | masks secret-looking query values and a userinfo password |
@@ -264,6 +265,23 @@ class SignedApi(Client):
 ```
 
 Network errors don't reach `on_response`; every failed attempt is logged on the `apiroute` logger, with the route, the attempt number and the error.
+
+`check_response` is for APIs that report a failure inside a successful response, such as a 200 whose body says the call was rate limited. Whatever it raises goes through `should_retry` like any other failure:
+
+```python
+class RateLimited(Exception): ...
+
+
+class TokenApi(Client):
+    retries = Retries.exponential(attempts=5, initial=1, max=30)
+
+    def check_response(self, request, response):
+        if response.json().get("code") == 4029:  # "too many requests", sent with status 200
+            raise RateLimited(request.operation)
+
+    def should_retry(self, error, attempt):
+        return isinstance(error, RateLimited) or super().should_retry(error, attempt)
+```
 
 ## Transports: how requests are sent
 
