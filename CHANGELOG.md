@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.5.1](https://github.com/dougyouch/apiroute/compare/v1.5.0...v1.5.1) (2026-10-26)
+
+
+### Bug Fixes
+
+* keep a base_url's query string on the request ([2aeebae](https://github.com/dougyouch/apiroute/commit/2aeebae6dcc9d5a505d875ee24f639d57d4cb63a))
+* keep a base_url's query string on the request ([31b6560](https://github.com/dougyouch/apiroute/commit/31b6560fa826bb05e1a4e968e8a088761bba461c))
+
 ## [1.5.0](https://github.com/dougyouch/apiroute/compare/v1.4.0...v1.5.0) (2026-10-26)
 
 
