@@ -248,6 +248,7 @@ The first three derive from `ApiRouteError`. `client.last_response` holds the mo
 | `on_response(self, request, response, elapsed)` | after every response, whatever its status; for streams, before the body is read | nothing |
 | `should_retry(self, error, attempt)` | when an attempt fails | retries httpx timeouts, network and protocol errors |
 | `escape_path(self, value)` | for every path value | percent-encodes everything but `A-Z a-z 0-9 - . _ ~` |
+| `redact_url(self, url)` | for the URL in an `UnexpectedResponse` message, and so in retry log lines | masks secret-looking query values and a userinfo password |
 | `soap_header(self, operation)` | when building a SOAP envelope; returns a dict for its Header | no Header |
 
 `request.operation` names the call: the route's `operation=` (generated clients set it to the spec's `operationId` or WSDL operation name), else the method name. It's useful for logging, metrics and APIs that want the call name in the request.
@@ -400,6 +401,7 @@ Nothing is imported until it's used. On GitHub's spec (1,242 operations, 4,035 m
 - **Base URLs** must be `http` or `https` and have a host. This is checked when the class is created and when a `base_url` is passed to a client, which keeps a misconfiguration from reaching `file:` and similar schemes.
 - **Path values** are percent-encoded so each stays one path segment: `get_file(name="a/b c")` requests `/files/a%2Fb%20c`, so a value can never add `..` or a segment. Override `escape_path` to allow `/`.
 - **URLs are joined, not resolved:** the request URL is `base_url` plus the path, so a route can't replace the host.
+- **Secrets stay out of messages:** an `UnexpectedResponse` shows its URL through `redact_url`, which masks the values of query parameters whose names contain a secret word (`api_key`, `apikey`, `accessToken`, `client_secret`, `sig`, ...) and a password in the userinfo. The retry log lines print that message. Override `redact_url` for a key elsewhere, such as in the path; `.request` keeps the real URL.
 - **TLS** is verified by default (httpx). Turning it off takes an explicit `verify=False` on a transport.
 - **Streamed files** are only opened once the status has passed, and paths with a null byte or a `..` segment are rejected.
 

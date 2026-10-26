@@ -1,3 +1,4 @@
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -16,8 +17,10 @@ class ResponseReader:
         returns: str,
         converter: Any = None,
         decoder: Any = None,
+        redact_url: Callable[[str], str] = str,
     ):
         self._route_name = route_name
+        self._redact_url = redact_url
         self._expected = expected
         self._returns = returns
         self._converter = converter
@@ -38,7 +41,7 @@ class ResponseReader:
 
     def check_status(self, response: httpx.Response) -> None:
         if not self.is_expected(response.status_code):
-            raise UnexpectedResponse(self._route_name, response)
+            raise self._unexpected(response)
 
     def is_expected(self, status_code: int) -> bool:
         if self._expected is None:
@@ -59,4 +62,10 @@ class ResponseReader:
         try:
             return response.json()
         except ValueError as error:
-            raise UnexpectedResponse(self._route_name, response, "invalid JSON body") from error
+            raise self._unexpected(response, "invalid JSON body") from error
+
+    def _unexpected(
+        self, response: httpx.Response, reason: str | None = None
+    ) -> UnexpectedResponse:
+        shown_url = self._redact_url(str(response.request.url))
+        return UnexpectedResponse(self._route_name, response, reason, shown_url=shown_url)

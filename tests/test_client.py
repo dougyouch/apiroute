@@ -95,3 +95,49 @@ def test_escape_path_can_be_overridden(transport, recorder):
 
     Nested("s", transport=transport).get_user("a/b")
     assert recorder.last.url.path == "/users/a/b"
+
+
+class KeyedApi(Client):
+    base_url = "https://api.keyed.test"
+    query_params = {"api_key": "s3cret"}
+    retries = Retries(attempts=2, sleep=0)
+
+    def should_retry(self, error, attempt):
+        return isinstance(error, UnexpectedResponse) and error.status_code == 429
+
+    @route("/things/{id}")
+    def get_thing(self, id: int) -> dict: ...
+
+
+def test_errors_show_the_url_with_secret_query_values_masked(transport, recorder):
+    recorder.respond(httpx.Response(404))
+    with pytest.raises(UnexpectedResponse) as raised:
+        KeyedApi(transport=transport).get_thing(7)
+    message = str(raised.value)
+    assert "s3cret" not in message
+    assert "GET https://api.keyed.test/things/7?api_key=***" in message
+    assert "api_key=s3cret" in str(raised.value.request.url)  # the request itself is untouched
+
+
+def test_retry_log_lines_show_the_masked_url(transport, recorder, caplog):
+    recorder.respond(httpx.Response(429), httpx.Response(429))
+    with pytest.raises(UnexpectedResponse):
+        KeyedApi(transport=transport).get_thing(7)
+    assert "retrying" in caplog.text and "api_key=***" in caplog.text
+    assert "s3cret" not in caplog.text
+
+
+def test_redact_url_can_be_overridden_for_a_key_in_the_path(transport, recorder):
+    class PathKeyed(Client):
+        base_url = "https://rpc.provider.test/v2/k3y"
+
+        def redact_url(self, url):
+            return super().redact_url(url).replace("/v2/k3y", "/v2/***")
+
+        @route("POST", "/")
+        def call(self, body: dict) -> dict: ...
+
+    recorder.respond(httpx.Response(500))
+    with pytest.raises(UnexpectedResponse) as raised:
+        PathKeyed(transport=transport).call({"method": "x"})
+    assert "k3y" not in str(raised.value) and "/v2/***" in str(raised.value)
