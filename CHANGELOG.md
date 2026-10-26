@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.3.0](https://github.com/dougyouch/apiroute/compare/v1.2.1...v1.3.0) (2026-10-26)
+
+
+### Features
+
+* check_response hook to reject a response inside the retry loop ([6732251](https://github.com/dougyouch/apiroute/commit/6732251971ce4f72be6d605d744e17c8cc2d91d5))
+* mask secrets in URLs shown in errors and retry logs ([6732251](https://github.com/dougyouch/apiroute/commit/6732251971ce4f72be6d605d744e17c8cc2d91d5))
+
 ## [1.2.1](https://github.com/dougyouch/apiroute/compare/v1.2.0...v1.2.1) (2026-10-23)
 
 
