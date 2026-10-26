@@ -14,3 +14,5 @@ class RequestSpec:
     # The API's own name for the operation (an OpenAPI operationId, a WSDL operation), else
     # the route's method name: for on_request/on_response, e.g. to add eBay's callname
     operation: str = ""
+    # Whether a 3xx answer is followed; None leaves it to the transport's httpx client
+    follow_redirects: bool | None = None

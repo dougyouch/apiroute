@@ -34,6 +34,7 @@ class RequestBuilder:
             content=content,
             timeout=self._timeout(definition),
             operation=definition.operation or definition.name,
+            follow_redirects=self._config.follow_redirects,
         )
 
     def _url(self, definition: RouteDefinition, resolve: PlaceholderResolver) -> str:

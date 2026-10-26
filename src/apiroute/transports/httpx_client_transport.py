@@ -25,9 +25,12 @@ class HttpxClientTransport:
 
 
 def request_arguments(spec: RequestSpec) -> dict:
-    return {
+    arguments = {
         "headers": spec.headers,
         "params": spec.params,
         "content": spec.content,
         "timeout": spec.timeout,
     }
+    if spec.follow_redirects is not None:
+        arguments["follow_redirects"] = spec.follow_redirects
+    return arguments
