@@ -34,3 +34,18 @@ def test_soft_keywords_are_the_same_on_every_python():
         "case_",
         "kind",
     ]
+
+
+def test_client_hooks_and_settings_are_reserved():
+    from apiroute.codegen.python_names import unique
+
+    taken: set[str] = set()
+    names = [
+        "idempotent",
+        "idempotency_key",
+        "follow_redirects",
+        "check_response",
+        "redact_url",
+        "soap_header",
+    ]
+    assert [unique(name, taken) for name in names] == [f"{name}_2" for name in names]
