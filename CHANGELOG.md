@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.8.0](https://github.com/dougyouch/apiroute/compare/v1.7.0...v1.8.0) (2026-10-27)
+
+
+### Features
+
+* validate graphql_route documents against graphql_schema ([f3a0373](https://github.com/dougyouch/apiroute/commit/f3a0373ea3d8db1e44af6e0688b7baab2a570c6a))
+* validate graphql_route documents against graphql_schema ([500f3e1](https://github.com/dougyouch/apiroute/commit/500f3e1be920cee2d0bbdc4834129a8273efa269))
+
+
+### Bug Fixes
+
+* read introspection from newer GraphQL servers on graphql-core 3.2 ([d33598c](https://github.com/dougyouch/apiroute/commit/d33598c19bf4e8a1d8585c116cbaf979c1b0737a))
+
 ## [1.7.0](https://github.com/dougyouch/apiroute/compare/v1.6.0...v1.7.0) (2026-10-27)
 
 
