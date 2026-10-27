@@ -1,6 +1,7 @@
 import builtins
 import functools
 import importlib
+import io
 import sys
 import typing
 from typing import Any
@@ -104,11 +105,60 @@ def _adapter(response_type: Any) -> Any:
 
 
 def _plain(value: Any) -> Any:
-    """Request models as JSON-ready data, by their wire names, leaving out fields not set."""
+    """Request models as JSON-ready data, by their wire names, leaving out fields not set.
+    Files (GraphQL Upload values, open files) stay as they are, for a multipart request."""
     if hasattr(value, "model_dump"):
-        return value.model_dump(mode="json", by_alias=True, exclude_unset=True)
+        dumped = _with_uploads(value).model_dump(mode="python", by_alias=True, exclude_unset=True)
+        return _jsonable(dumped)
     if isinstance(value, (list, tuple)):
         return [_plain(item) for item in value]
     if isinstance(value, dict):
         return {key: _plain(item) for key, item in value.items()}
     return value
+
+
+def _with_uploads(model: Any) -> Any:
+    """The model, or a copy with its open files wrapped in Upload: pydantic would otherwise
+    dump a file in an Any field as the list of its lines, reading it."""
+    updates = {}
+    for name, item in vars(model).items():
+        wrapped = _files_wrapped(item)
+        if wrapped is not item:
+            updates[name] = wrapped
+    return model.model_copy(update=updates) if updates else model
+
+
+def _files_wrapped(value: Any) -> Any:
+    from apiroute.graphql.upload import Upload
+
+    if isinstance(value, io.IOBase):
+        return Upload(value)
+    if hasattr(value, "model_dump"):
+        return _with_uploads(value)
+    if isinstance(value, (list, tuple)):
+        items = [_files_wrapped(item) for item in value]
+        return items if any(a is not b for a, b in zip(items, value, strict=True)) else value
+    if isinstance(value, dict):
+        items = {key: _files_wrapped(item) for key, item in value.items()}
+        return items if any(items[k] is not value[k] for k in value) else value
+    return value
+
+
+def _jsonable(value: Any) -> Any:
+    """A model's dumped data with values JSON can't hold (datetimes, enums, UUIDs) converted
+    as pydantic's JSON mode would, except files, which a GraphQL body sends as parts."""
+    if isinstance(value, dict):
+        return {key: _jsonable(item) for key, item in value.items()}
+    if isinstance(value, (list, tuple)):
+        return [_jsonable(item) for item in value]
+    if value is None or isinstance(value, (str, int, float, bool)) or _is_file(value):
+        return value
+    from pydantic_core import to_jsonable_python
+
+    return to_jsonable_python(value)
+
+
+def _is_file(value: Any) -> bool:
+    from apiroute.graphql.upload import Upload
+
+    return isinstance(value, (Upload, io.IOBase))

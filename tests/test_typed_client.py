@@ -102,3 +102,44 @@ def test_paginate_validates_items_lazily():
         return [i async for i in TypedClient(AsyncParent())._paginate("items", Item, limit=2)]
 
     assert asyncio.run(collect()) == [Item(0), Item(1)]
+
+
+def test_files_in_request_models_stay_files_and_the_rest_is_json_ready():
+    import datetime
+    import enum
+    import io
+    from typing import Any
+
+    from apiroute.graphql import Upload
+    from apiroute.typed_client import _plain
+
+    class Color(enum.Enum):
+        RED = "red"
+
+    class Inner(BaseModel):
+        when: datetime.date
+        color: Color
+
+    class Request(BaseModel):
+        avatar: Any = Field(alias="avatarFile")
+        stream: Any = None
+        inner: Inner
+        files: list[Any] = []
+
+    upload, stream = Upload(b"x"), io.BytesIO(b"y")
+    plain = _plain(
+        Request(
+            avatarFile=upload,
+            stream=stream,
+            inner=Inner(when=datetime.date(2026, 1, 2), color=Color.RED),
+            files=[upload],
+        )
+    )
+    wrapped = plain.pop("stream")
+    assert plain == {
+        "avatarFile": upload,
+        "inner": {"when": "2026-01-02", "color": "red"},
+        "files": [upload],
+    }
+    assert stream.tell() == 0  # wrapped, not read while dumping the model
+    assert wrapped.part() == ("upload", b"y", "application/octet-stream")
