@@ -122,6 +122,7 @@ Every generated root client extends the `base_class` from `apis.yaml`, and apiro
 | API key in a header or query | an entry in `headers` or `query_params` reading an attribute |
 | Request signing | `on_request(self, request)` returning `dataclasses.replace(request, headers=...)` |
 | Per-call parameters | `on_request`, with `request.operation` (the spec's operationId or WSDL operation name) |
+| Retrying safe operations | apiroute 2 only retries `GET`, `HEAD` and `OPTIONS` after a read timeout. Override `idempotent(self, request)` to return `True` for operations that are safe to repeat, by `request.operation` (a SOAP API's `Get*` calls) or `request.method`, and `None` for the rest. Set `idempotency_key = "Idempotency-Key"` instead for APIs that honor that header |
 | SOAP header credentials | `soap_header(self, operation) -> dict`, in the same xmltodict shape as bodies |
 | Sandbox or region hosts | an `__init__` flag that sets `kwargs["base_url"]` from `type(self)._config.base_url` |
 
