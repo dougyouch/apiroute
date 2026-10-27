@@ -7,6 +7,7 @@ import httpx
 
 from apiroute.async_retry_runner import AsyncRetryRunner
 from apiroute.client_config import ClientConfig
+from apiroute.idempotency_key import IdempotencyKey
 from apiroute.request_builder import RequestBuilder
 from apiroute.request_options import RequestOptions
 from apiroute.request_spec import RequestSpec
@@ -69,11 +70,17 @@ class RouteExecutor:
     def _prepare(self, values: Mapping[str, Any]) -> tuple[RequestSpec, RetryPolicy]:
         config = self._router._request_config()
         spec = RequestBuilder(config, self._root, self._options).build(self._definition, values)
-        policy = RetryPolicy(self._retries(config), self._should_retry(), self._definition.name)
+        should_retry = self._should_retry(config, spec)
+        policy = RetryPolicy(self._retries(config), should_retry, self._definition.name)
         return spec, policy
 
-    def _should_retry(self) -> Callable[[Exception, int], bool]:
-        if self._definition.idempotent:
+    def _should_retry(
+        self, config: ClientConfig, spec: RequestSpec
+    ) -> Callable[[Exception, int], bool]:
+        """The client's should_retry; for a route that isn't idempotent and whose request
+        carries no idempotency key, without the errors that may follow sending."""
+        definition = self._definition
+        if definition.idempotent or IdempotencyKey(definition, config).sent_in(spec.headers):
             return self._root.should_retry
         return UnsentRetryFilter(self._root.should_retry)
 

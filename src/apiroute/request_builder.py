@@ -4,6 +4,7 @@ from urllib.parse import parse_qsl, urlsplit, urlunsplit
 
 from apiroute.body_encoder import BodyEncoder
 from apiroute.client_config import ClientConfig
+from apiroute.idempotency_key import IdempotencyKey
 from apiroute.placeholder_resolver import PlaceholderResolver
 from apiroute.query_encoder import QueryEncoder
 from apiroute.request_options import RequestOptions
@@ -59,6 +60,9 @@ class RequestBuilder:
             headers["content-type"] = ("Content-Type", content_type)
         _merge_headers(headers, self._bound(definition, values, "header"))
         _merge_headers(headers, self._options.headers or {})
+        key = IdempotencyKey(definition, self._config)
+        if key.header_name is not None and key.header_name.lower() not in headers:
+            headers[key.header_name.lower()] = (key.header_name, key.new_value())
         return {name: str(value) for name, value in headers.values() if value is not None}
 
     def _params(

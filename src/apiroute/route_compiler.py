@@ -18,6 +18,10 @@ from apiroute.value_template import ValueTemplate
 
 _VARIADIC = (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
 
+# Methods whose repetition can't repeat an effect, so they're retried after the request may
+# have reached the server; other routes need idempotent=True or an idempotency key
+SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
+
 # Stream modes, and the parameter each takes its destination from
 STREAM_PARAMS = {"file": "file", "io": "io", "iter": None}
 
@@ -70,7 +74,8 @@ class RouteCompiler:
             body_format=self._body_format(),
             decoder=self._spec.decoder,
             operation=self._spec.operation,
-            idempotent=self._spec.idempotent,
+            idempotent=self._idempotent(),
+            idempotency_key=self._idempotency_key(),
         )
 
     def _signature(self) -> inspect.Signature:
@@ -199,6 +204,18 @@ class RouteCompiler:
         if evaluated is None and isinstance(annotation, str):
             return _Unresolved(annotation)
         return strip_annotated(evaluated)
+
+    def _idempotent(self) -> bool:
+        """Repeating it can't repeat its effect: as declared, else for GET, HEAD and OPTIONS."""
+        if self._spec.idempotent is not None:
+            return self._spec.idempotent
+        return self._http_method() in SAFE_METHODS
+
+    def _idempotency_key(self) -> str | bool | None:
+        key = self._spec.idempotency_key
+        if key is None or key is False or (isinstance(key, str) and key):
+            return key
+        raise ValueError("idempotency_key must be a header name, False or None")
 
     def _expected(self) -> frozenset[int] | None:
         expected = self._spec.expected

@@ -19,6 +19,7 @@ CONFIG_ATTRIBUTES = (
     "inherit",
     "compile_routes",
     "follow_redirects",
+    "idempotency_key",
 )
 
 # These merge down the class hierarchy, as the gem's header and query_param calls do;
@@ -47,6 +48,9 @@ class ClientConfig:
     # Follow 3xx answers (httpx doesn't by default); None leaves it to the transport. Like
     # base_url a property of the host, so a section takes its parent's unless it sets one
     follow_redirects: bool | None = None
+    # The header (e.g. "Idempotency-Key") sending one key per call on routes that aren't
+    # idempotent, which makes retrying them safe; a section takes its parent's unless it sets one
+    idempotency_key: str | None = None
     # The settings a class in the chain set itself, as opposed to defaults: an inherited retries
     # or timeout gives way to the section's own only when the section set one
     explicit: frozenset[str] = frozenset()
@@ -65,6 +69,8 @@ class ClientConfig:
         changes: dict[str, Any] = {"base_url": self.base_url or parent.base_url}
         if "follow_redirects" not in self.explicit:
             changes["follow_redirects"] = parent.follow_redirects
+        if "idempotency_key" not in self.explicit:
+            changes["idempotency_key"] = parent.idempotency_key
         for name in self.inherit:
             if name in MERGED_ATTRIBUTES:
                 changes[name] = {**getattr(root, name), **getattr(self, name)}
@@ -98,6 +104,10 @@ class ClientConfig:
             raise ValueError("retries must be a Retries")
         if self.follow_redirects not in (None, True, False):
             raise ValueError("follow_redirects must be True, False or None")
+        if self.idempotency_key is not None and not (
+            isinstance(self.idempotency_key, str) and self.idempotency_key
+        ):
+            raise ValueError("idempotency_key must be a header name or None")
         if self.compile_routes not in ("eager", "lazy"):
             raise ValueError("compile_routes must be 'eager' or 'lazy'")
         if not self.inherit <= INHERITABLE:
