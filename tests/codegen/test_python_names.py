@@ -23,3 +23,14 @@ def test_unique_skips_taken_and_reserved_names():
     assert unique("list", taken) == "list_2"
     assert unique("models", taken) == "models_2"  # reserved: the .models view
     assert unique("models", set(), frozenset()) == "models"
+
+
+def test_soft_keywords_are_the_same_on_every_python():
+    from apiroute.codegen.python_names import safe_identifier
+
+    assert [safe_identifier(n) for n in ("type", "match", "case", "kind")] == [
+        "type_",
+        "match_",
+        "case_",
+        "kind",
+    ]

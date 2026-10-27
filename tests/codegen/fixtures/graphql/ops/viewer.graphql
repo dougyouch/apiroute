@@ -1,0 +1,9 @@
+# The signed-in user.
+query Viewer($full: Boolean = false) {
+  viewer {
+    ...UserFields
+    createdAt
+    url
+    name @include(if: $full)
+  }
+}

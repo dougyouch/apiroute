@@ -160,7 +160,7 @@ def test_without_a_schema_nothing_is_validated():
 
 def test_a_missing_schema_file_names_the_path():
     with pytest.raises(
-        RouteDefinitionError, match=r"Api\.viewer: can't read graphql_schema /\S+/missing\.graphql"
+        RouteDefinitionError, match=r"Api\.viewer: can't read GraphQL schema /\S+/missing\.graphql"
     ):
 
         class Api(Client):
@@ -184,10 +184,12 @@ def test_a_schema_without_graphql_core_is_an_error(monkeypatch):
 
 
 def test_two_clients_share_one_loaded_schema(monkeypatch):
-    graphql_schema_loader._load_file.cache_clear()
+    graphql_schema_loader.load_schema_file.cache_clear()
     built = []
     real = graphql.build_schema
-    monkeypatch.setattr(graphql, "build_schema", lambda text: built.append(1) or real(text))
+    monkeypatch.setattr(
+        graphql, "build_schema", lambda text, **kw: built.append(1) or real(text, **kw)
+    )
 
     class One(GitHub):
         viewer = graphql_route(GOOD)

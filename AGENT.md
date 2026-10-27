@@ -4,7 +4,7 @@ Guidance for AI coding agents (and people) working in this repository.
 
 ## What this repository is
 
-`apiroute` is a Python library for building API clients declaratively: one `@route` per endpoint (and `graphql_route` per GraphQL operation), safe defaults, httpx underneath. It also ships a code generator (`apiroute generate openapi|wsdl`) that turns OpenAPI/Swagger specs and WSDLs into clients. It's released to PyPI as `apiroute`. See `README.md` for the user-facing documentation.
+`apiroute` is a Python library for building API clients declaratively: one `@route` per endpoint (and `graphql_route` per GraphQL operation), safe defaults, httpx underneath. It also ships a code generator (`apiroute generate openapi|wsdl|graphql`) that turns OpenAPI/Swagger specs, WSDLs, and GraphQL schemas with hand-written operations into clients. It's released to PyPI as `apiroute`. See `README.md` for the user-facing documentation.
 
 ## Layout
 
@@ -13,7 +13,7 @@ Guidance for AI coding agents (and people) working in this repository.
 | `src/apiroute/` | The runtime library: `Client`, `Section`, `@route`, retries, request building, response conversion |
 | `src/apiroute/graphql/` | `graphql_route` for hand-written GraphQL operations: document reading, variable binding, `GraphQLBody`, `GraphQLDecoder`, `GraphQLError` |
 | `src/apiroute/testing/` | Test helpers for code using apiroute clients: `MockTransport`, `mock_transport()`, `block_network()`, and the pytest plugin registered in `pyproject.toml` |
-| `src/apiroute/codegen/` | The generator behind the `apiroute` CLI (`cli.py`), with `openapi/` and `wsdl/` front ends and the emitters that write client code |
+| `src/apiroute/codegen/` | The generator behind the `apiroute` CLI (`cli.py`), with `openapi/`, `wsdl/` and `graphql/` front ends (readers that build an `ApiDefinition`) and the emitters that write client code |
 | `tests/` | One test module per runtime class; `tests/codegen/`, `tests/graphql/`, `tests/soap/`, `tests/testing/` and `tests/transports/` cover the generator, GraphQL, SOAP, the test helpers and transports |
 | `.github/workflows/` | `ci.yml` and `release.yml` (release-please and PyPI) |
 | `.agent/skills/apiroute-client.md` | Skill for creating and maintaining repositories of generated clients for any API |

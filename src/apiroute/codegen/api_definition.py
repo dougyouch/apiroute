@@ -9,7 +9,7 @@ class Parameter:
 
     name: str  # the Python name
     wire_name: str
-    location: str  # "path", "query" or "header"
+    location: str  # "path", "query", "header", or "variable" for a GraphQL variable
     type: TypeRef
     required: bool
     description: str = ""
@@ -36,6 +36,17 @@ class SoapOperation:
 
 
 @dataclass
+class GraphQLOperationSpec:
+    """How a GraphQL operation is sent: its document (the operation and the fragments it
+    uses) to the endpoint path."""
+
+    document: str
+    operation_name: str
+    operation_type: str  # "query" or "mutation"
+    path: str = "/graphql"
+
+
+@dataclass
 class Operation:
     """One endpoint, as both layers generate it."""
 
@@ -51,6 +62,7 @@ class Operation:
     headers: dict[str, str] = field(default_factory=dict)  # fixed headers, e.g. SOAPAction
     deprecated: bool = False
     soap: SoapOperation | None = None
+    graphql: GraphQLOperationSpec | None = None
     operation_id: str = ""  # the spec's name for it: an operationId or a WSDL operation
 
 
@@ -81,6 +93,9 @@ class Model:
     fields: list[ModelField] = field(default_factory=list)
     description: str = ""
     alias_of: TypeRef | None = None
+    # names the model's type comes from outside, name -> module: a GraphQL custom scalar
+    # mapped with --scalar DateTime=datetime:datetime is the alias DateTime = datetime
+    imports: dict[str, str] = field(default_factory=dict)
 
 
 @dataclass
@@ -111,3 +126,5 @@ class ApiDefinition:
     # "package.module:Class", a hand-written Client subclass the root client extends instead
     # of Client; it owns auth, so the spec's security schemes aren't generated
     base_class: str | None = None
+    # things the reader noticed that don't stop generation, e.g. a deprecated GraphQL field
+    warnings: list[str] = field(default_factory=list)

@@ -8,7 +8,7 @@ Build API clients declaratively: one `@route` per endpoint, safe defaults, [http
 - **Typed results.** A return annotation turns JSON into a pydantic model or a dataclass.
 - **Sync and async from the same class.** `client.get_user(...)` or `await client.aio.get_user(...)`.
 - **Testing included.** `MockTransport` answers requests by operation name, path or predicate, `block_network()` stops real calls, and a pytest plugin provides both as fixtures.
-- **Code generation.** `apiroute generate openapi|wsdl` turns OpenAPI/Swagger specs and WSDLs into clients, with models.
+- **Code generation.** `apiroute generate openapi|wsdl|graphql` turns OpenAPI/Swagger specs, WSDLs, and GraphQL schemas with your own `.graphql` operations into clients, with models.
 - **Small footprint.** The only required dependency is httpx; pydantic, SOAP, GraphQL checks and codegen are optional extras.
 
 ```python
@@ -37,7 +37,7 @@ class GitHub(Client):
 ```bash
 pip install apiroute            # or: uv add apiroute
 pip install apiroute[pydantic]  # to return pydantic models
-pip install apiroute[codegen]   # to generate clients from OpenAPI/Swagger specs and WSDLs
+pip install apiroute[codegen]   # to generate clients from OpenAPI/Swagger specs, WSDLs and GraphQL schemas
 pip install apiroute[soap]      # to run generated SOAP clients
 pip install apiroute[graphql]   # to check GraphQL documents against the API's schema when a class is created
 ```
@@ -284,7 +284,7 @@ class GitHub(Client):
 - **Variables.** Each variable is filled from the argument with the same name, else the argument with its snake_case name (`$repoName` from `repo_name`), else a client attribute. `variables={"userID": "user_id"}` maps a variable to an argument explicitly. An argument passed as `None` is left out, so the document's default for that variable applies. A required variable with nothing to fill it, or an argument that fills no variable (unless it's a `Header` or `Result`), raises `RouteDefinitionError` when the class is created.
 - **Routes without a `def`.** A bare `graphql_route(...)` gets one keyword-only parameter per variable. Required variables are required parameters; the others default to `None`.
 - **The response.** The route returns `data`, or the value at the dotted `data=` path inside it, or `None` if a step along that path is null. The result is converted by `model=` or the return annotation, as with `@route`.
-- **Errors.** A response with `errors` raises `GraphQLError`, which carries `.errors`, `.data` (anything the server resolved anyway), `.codes` (the `extensions.code` values) and `.response`. With `errors="partial"`, a response that has errors but non-null `data` returns that data and logs the errors. A 400 with a GraphQL `errors` body raises `GraphQLError`; any other status outside 2xx raises `UnexpectedResponse`.
+- **Errors.** A response with `errors` raises `GraphQLError`, which carries `.errors`, `.data` (anything the server resolved anyway), `.codes` (each error's `extensions.code`, or its top-level `type`, where GitHub puts `NOT_FOUND`) and `.response`. With `errors="partial"`, a response that has errors but non-null `data` returns that data and logs the errors. A 400 with a GraphQL `errors` body raises `GraphQLError`; any other status outside 2xx raises `UnexpectedResponse`.
 - **Operation names.** The operation's name is `RequestSpec.operation`, so `on_request`, `on_response` and `mock.on(operation="Repo")` can tell operations apart even though they all share one URL. `operation_name=` picks one operation from a document that has several, or names an anonymous operation. Without it, an anonymous operation is named after its method.
 - **Retries.** Queries are retried like any other route. A mutation is not retried after an error that may have happened once the server had the request: read and write timeouts or errors, and protocol errors. Errors before anything was sent, such as connection failures and pool timeouts, are still offered to `should_retry`. Pass `idempotent=True` for a mutation that is safe to repeat.
 - **Checking documents.** apiroute reads each document's operation type, name and variables itself. With `pip install apiroute[graphql]`, it also parses the document with graphql-core when the class is created, so a syntax error raises `RouteDefinitionError` at import time instead of failing on the server. To check documents against the API's schema as well, see below.
@@ -501,7 +501,7 @@ def _no_network(apiroute_block_network):
 
 ## Code generation
 
-`apiroute generate` writes a client package from an OpenAPI 3.0/3.1 or Swagger 2.0 spec, or from a WSDL 1.1 document (document/literal, SOAP 1.1 and 1.2). Specs can be file paths or URLs, in JSON or YAML.
+`apiroute generate` writes a client package from an OpenAPI 3.0/3.1 or Swagger 2.0 spec, from a WSDL 1.1 document (document/literal, SOAP 1.1 and 1.2), or from a GraphQL schema plus your own operation files (see [GraphQL clients](#graphql-clients)). Specs can be file paths or URLs, in JSON or YAML.
 
 ```bash
 apiroute generate openapi github.yaml -o gh --client-name GitHubApi           # dict routes only
@@ -566,6 +566,53 @@ Nothing is imported until it's used. On GitHub's spec (1,242 operations, 4,035 m
 - **Output passes `ruff check` and `ruff format`.** When ruff is installed, the generator runs it over the output; `--no-format` skips that.
 - **OpenAPI:** tags become sections, `operationId`s become method names, and path, query and header parameters become arguments. Bodies can be JSON, form or multipart; responses can be JSON, text or binary. Schemas become models, with `allOf` merged, `oneOf`/`anyOf` as unions and enums as `Literal`. Bearer, basic and API key auth become constructor arguments.
 - **WSDL:** each operation becomes a POST route with its `SOAPAction`. Bodies are dicts in the xmltodict shape: child elements as keys, `"@attr"` for attributes, `"#text"` for text content, and `"{namespace}local"` for an element from another namespace. Faults raise `apiroute.soap.SoapFault`. XML is parsed with `defusedxml`.
+
+### GraphQL clients
+
+A GraphQL API decides nothing about response shapes: the caller does. So instead of generating every field, `apiroute generate graphql` takes the schema and the `.graphql` operations you write, checks them against the schema, and generates one typed method per operation:
+
+```bash
+apiroute fetch-schema https://api.github.com/graphql -o specs/github.graphql \
+    -H "Authorization: Bearer $GITHUB_TOKEN"
+apiroute generate graphql specs/github.graphql --operations operations/github \
+    --endpoint https://api.github.com/graphql --models -o gh \
+    --scalar DateTime=datetime:datetime
+```
+
+```text
+operations/github/
+  fragments.graphql      fragments are shared by every file
+  viewer.graphql         query Viewer { ... }           -> gh.viewer()
+  repos/
+    repository.graphql   query Repository(...) { ... }  -> gh.repos.repository(...)
+    star.graphql         mutation Star(...) { ... }     -> gh.repos.star(...)
+```
+
+```graphql
+# A repository and its owner.
+query Repository($owner: String!, $repoName: String!) {
+  repository(owner: $owner, name: $repoName) {
+    name
+    stargazerCount
+    owner { login ... on User { name } }
+  }
+}
+```
+
+```python
+gh.repos.repository(owner="octocat", repo_name="hello-world")  # -> {"repository": {...}}
+result = gh.repos.models.repository(owner="octocat", repo_name="hello-world")
+result.repository.stargazer_count  # RepositoryResult -> RepositoryRepository -> int
+```
+
+- **Nothing is written until everything checks out.** Every operation is validated against the schema first. All problems, in all files, are reported as `file:line:column`, and the output directory is left alone. A deprecated field or an unused fragment is a warning.
+- **Files become methods, folders become sections.** Each named operation is one method, named in snake_case; files directly in `--operations` go on the root client, and each subfolder becomes a section. Variables are keyword arguments (`$repoName` becomes `repo_name`); optional ones default to `None` and aren't sent, so the operation's own defaults apply.
+- **Methods return the whole `data`.** `gh.repos.repository(...)` returns `{"repository": ...}`, not the repository, so adding a second field to an operation never changes a method's return type.
+- **Models follow your selections.** With `--models`, each operation gets `<Operation>Result` and one model per selected object, named by its path (`RepositoryRepositoryOwner`). Aliases name fields, nullable fields are `| None`, fields under `@include`/`@skip` default to `None`, and fragments are merged into the models that use them. A selection on an interface or union with type conditions (`... on User`) becomes a union of one model per named type plus an `...Other` fallback, told apart by `__typename`, which the generator adds to the query where it's missing.
+- **Inputs, enums and scalars.** Input objects and enums your operations use become models and `Literal` aliases. `Int`, `Float`, `String`, `ID` and `Boolean` map to Python types; custom scalars are `Any` unless `--scalar Name=module:type` maps them.
+- **`--endpoint`** sets the root client's `base_url` and the routes' path. Without it, routes post to `/graphql` and you pass `base_url=` when you construct the client. `--client-name`, `--base-class`, `--models` and `--no-format` work as for the other formats.
+- **The schema** can be an SDL file, a `.json` introspection result, or an endpoint URL to introspect (with `-H` for auth). For a repository that regenerates on a schedule, save it with `fetch-schema` and generate from the file: SDL diffs cleanly, and builds stay reproducible. Header values are used as given, so take tokens from the environment.
+- Generated clients don't validate at run time, so they don't need graphql-core; the generator already did. Generating needs `pip install apiroute[codegen]`.
 
 ## Security
 

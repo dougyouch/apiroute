@@ -1,0 +1,11 @@
+# Users and repositories matching a query.
+query Search($query: String!, $type: SearchType!, $from: Int) {
+  search(query: $query, type: $type, first: $from) {
+    ... on User {
+      login
+    }
+    ... on Repository {
+      name
+    }
+  }
+}

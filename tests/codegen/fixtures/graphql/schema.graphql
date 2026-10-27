@@ -1,0 +1,90 @@
+"""A small code-hosting API."""
+schema {
+  query: Query
+  mutation: Mutation
+}
+
+scalar DateTime
+scalar URI
+
+type Query {
+  viewer: User!
+  repository(owner: String!, name: String!): Repository
+  search(query: String!, type: SearchType!, first: Int = 10): [SearchResult!]!
+  node(id: ID!): Node
+}
+
+type Mutation {
+  addStar(input: AddStarInput!): AddStarPayload
+}
+
+interface Node {
+  id: ID!
+}
+
+interface RepositoryOwner {
+  login: String!
+}
+
+type User implements Node & RepositoryOwner {
+  id: ID!
+  login: String!
+  "The user's display name."
+  name: String
+  url: URI!
+  createdAt: DateTime!
+  oldLogin: String @deprecated(reason: "Use login.")
+  repositories(first: Int, after: String): RepositoryConnection!
+}
+
+type Organization implements Node & RepositoryOwner {
+  id: ID!
+  login: String!
+  members: Int!
+}
+
+type Repository implements Node {
+  id: ID!
+  name: String!
+  description: String
+  stargazerCount: Int!
+  owner: RepositoryOwner!
+  topics: [String!]
+  languages: [String]
+  visibility: Visibility!
+}
+
+union SearchResult = User | Repository | Organization
+
+type RepositoryConnection {
+  nodes: [Repository!]!
+  totalCount: Int!
+}
+
+enum Visibility {
+  PUBLIC
+  PRIVATE
+  INTERNAL
+}
+
+enum SearchType {
+  USER
+  REPOSITORY
+}
+
+"Tags a star."
+input StarTag {
+  name: String!
+  parent: StarTag
+}
+
+input AddStarInput {
+  starrableId: ID!
+  clientMutationId: String
+  tags: [StarTag!]
+}
+
+type AddStarPayload {
+  clientMutationId: String
+  starrable: Node
+}

@@ -94,3 +94,16 @@ def test_partial_still_raises_without_data():
 def test_rejects_an_unknown_error_mode():
     with pytest.raises(ValueError, match="errors must be one of"):
         GraphQLDecoder("A", errors="ignore")
+
+
+def test_codes_fall_back_to_a_top_level_type_as_github_sends():
+    body = {
+        "data": {"repository": None},
+        "errors": [
+            {"type": "NOT_FOUND", "path": ["repository"], "message": "Could not resolve"},
+            {"message": "x", "extensions": {"code": "THROTTLED"}, "type": "IGNORED"},
+        ],
+    }
+    with pytest.raises(GraphQLError) as caught:
+        GraphQLDecoder("Repo")(response(json=body))
+    assert caught.value.codes == ["NOT_FOUND", "THROTTLED"]

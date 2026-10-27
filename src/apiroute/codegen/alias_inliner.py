@@ -7,7 +7,7 @@ from apiroute.codegen.type_ref import TypeRef
 class AliasInliner:
     """Writes a type without naming any model, for the dict layer: aliases that end in plain
     types (PetStatus = Literal["available", "sold"]) are spelled out, and anything that
-    still involves a model class becomes Any."""
+    still involves a model class, or a type imported from elsewhere, becomes Any."""
 
     def __init__(self, definition: ApiDefinition):
         self._models = definition.models
@@ -20,7 +20,7 @@ class AliasInliner:
                 return expr
             for name in names:
                 model = self._models.get(name)
-                if model is None or model.alias_of is None:
+                if model is None or model.alias_of is None or model.imports:
                     return "Any"
                 spelled = model.alias_of.expr
                 if " | " in spelled and expr != name:
