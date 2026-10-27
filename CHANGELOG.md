@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.11.0](https://github.com/dougyouch/apiroute/compare/v1.10.0...v1.11.0) (2026-10-27)
+
+
+### Features
+
+* send GraphQL operations as automatic persisted queries ([3d703c5](https://github.com/dougyouch/apiroute/commit/3d703c5c002a559838d205f172ea0b95f82e7f33))
+* send GraphQL operations as automatic persisted queries ([9bb32c9](https://github.com/dougyouch/apiroute/commit/9bb32c96775efbcb63299c70a3e95f4605f6a640))
+
+
+### Bug Fixes
+
+* persisted queries work with servers that don't know the protocol, and log quietly ([32e5572](https://github.com/dougyouch/apiroute/commit/32e5572e7f6f9206024eb0e30ee8dd56a5bc2266))
+
 ## [1.10.0](https://github.com/dougyouch/apiroute/compare/v1.9.0...v1.10.0) (2026-10-27)
 
 
