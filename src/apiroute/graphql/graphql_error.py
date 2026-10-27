@@ -7,7 +7,8 @@ from apiroute.api_route_error import ApiRouteError
 
 class GraphQLError(ApiRouteError):
     """The server answered a GraphQL operation with errors. data holds whatever it resolved
-    anyway (often partial, sometimes None); codes the errors' extensions.code values."""
+    anyway (often partial, sometimes None); codes the errors' codes (extensions.code, or a
+    top-level type as GitHub sends)."""
 
     def __init__(self, operation: str, errors: list[Any], data: Any, response: httpx.Response):
         self.operation = operation
@@ -31,7 +32,10 @@ def describe_errors(errors: list[Any]) -> str:
 
 
 def _code(error: Any) -> Any:
+    """extensions.code, as the spec suggests, else a top-level type, where GitHub puts its
+    codes ("NOT_FOUND")."""
     if not isinstance(error, dict):
         return None
     extensions = error.get("extensions")
-    return extensions.get("code") if isinstance(extensions, dict) else None
+    code = extensions.get("code") if isinstance(extensions, dict) else None
+    return code if code is not None else error.get("type")

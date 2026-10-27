@@ -50,7 +50,7 @@ def test_a_subclass_resolves_against_the_declaring_class():
 
 def test_a_missing_file_names_the_absolute_path():
     with pytest.raises(
-        ValueError, match=r"can't read graphql_schema /.*/tests/graphql/nope\.graphql"
+        ValueError, match=r"can't read GraphQL schema /.*/tests/graphql/nope\.graphql"
     ):
         load_schema(holder("nope.graphql"))
 
@@ -79,7 +79,9 @@ def test_each_file_is_built_once(tmp_path, monkeypatch):
     path.write_text("type Query { a: Int }")
     built = []
     real = graphql.build_schema
-    monkeypatch.setattr(graphql, "build_schema", lambda text: built.append(text) or real(text))
+    monkeypatch.setattr(
+        graphql, "build_schema", lambda text, **kw: built.append(text) or real(text, **kw)
+    )
     first = load_schema(holder(path))
     assert load_schema(holder(str(path))) is first
     assert len(built) == 1
@@ -100,6 +102,30 @@ def test_needs_graphql_core(monkeypatch):
 
 @pytest.fixture(autouse=True)
 def _fresh_cache():
-    graphql_schema_loader._load_file.cache_clear()
+    graphql_schema_loader.load_schema_file.cache_clear()
     yield
-    graphql_schema_loader._load_file.cache_clear()
+    graphql_schema_loader.load_schema_file.cache_clear()
+
+
+# GitHub's published schema deprecates fields its interfaces don't, which graphql-core 3.3
+# rejects as an invalid schema; schemas describe what a server answers, so they're trusted
+LENIENT_SDL = """
+interface Node { id: ID! }
+type Repo implements Node { id: ID! @deprecated(reason: "Use nodeId.") name: String }
+type Query { node: Node repo: Repo }
+"""
+
+
+def test_schemas_that_break_newer_graphql_core_rules_still_load(tmp_path):
+    from apiroute.graphql.graphql_schema_check import check_against_schema
+
+    path = tmp_path / "lenient.graphql"
+    path.write_text(LENIENT_SDL)
+    schema = load_schema(holder(path))
+    check_against_schema("query R { repo { id name } }", schema)
+    with pytest.raises(ValueError, match="Cannot query field 'nope'"):
+        check_against_schema("query R { repo { nope } }", schema)
+    data = graphql.graphql_sync(schema, graphql.get_introspection_query()).data
+    introspected = tmp_path / "lenient.json"
+    introspected.write_text(json.dumps({"data": data}))
+    check_against_schema("query R { repo { id } }", load_schema(holder(introspected)))
