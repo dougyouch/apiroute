@@ -63,6 +63,17 @@ class GraphQLRouteBuilder:
         converter = GraphQLItemConverter(options.model, func)
         return GraphQLPaginator(self._label(name), options.paginate, converter)
 
+    def persisted_specs(self, spec: RouteSpec) -> dict[str, RouteSpec]:
+        """For persisted=True: the route's spec as hash-only and as registering requests."""
+        if not self._options.persisted:
+            return {}
+        name = self._operation.name
+        document = self._options.document
+        return {
+            mode: spec._replace(body_format=GraphQLBody(document, name, persisted=mode))
+            for mode in ("hash", "register")
+        }
+
     @property
     def cursor(self) -> str:
         """The variable a paginated route's later pages set to the previous endCursor."""

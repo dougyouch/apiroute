@@ -21,6 +21,7 @@ def graphql_route(
     validate: bool = True,
     paginate: str | None = None,
     cursor: str = "after",
+    persisted: bool = False,
 ) -> GraphQLRouteDecorator:
     """Declares a GraphQL operation, written by hand, on a def or on its own:
 
@@ -48,6 +49,10 @@ def graphql_route(
     connection's items (its nodes, or each edge's node), across pages: each page is requested
     as iteration reaches it, with the last pageInfo.endCursor as the $after variable (cursor=
     names another). Items are converted by model= or an Iterator[Item] return annotation.
+
+    persisted=True sends automatic persisted queries: the document's SHA-256 instead of the
+    document, registering it with the server on a miss (one more request), and falling back to
+    full documents on a server without them.
     """
     options = GraphQLRouteOptions(
         document=document,
@@ -63,6 +68,7 @@ def graphql_route(
         validate=validate,
         paginate=paginate,
         cursor=cursor,
+        persisted=persisted,
     )
     return GraphQLRouteDecorator(GraphQLRouteBuilder(options))
 

@@ -208,3 +208,29 @@ def test_generated_paging_through_edges_and_aio(paged, mock):
         return [item.name async for item in paged.models.aio.repo_edges()]
 
     assert asyncio.run(collect()) == ["a", "b"]
+
+
+def test_persisted_queries_send_the_hash_of_the_document_in_the_file(generate_graphql, mock):
+    import hashlib
+    import inspect
+
+    hub = generate_graphql(persisted=True)
+    api = hub.HubApi(transport=mock)
+    source = inspect.getsource(sys.modules[f"{hub.__name__}.client"])
+    assert source.count("persisted=True,") == 2  # search and viewer
+    mock.respond(
+        graphql_response(errors=[{"message": "PersistedQueryNotFound"}]),
+        graphql_response(data={"search": []}),
+    )
+    api.search(query="q", type_="USER")
+    hashed, registered = (call.json() for call in mock.calls)
+    expected = hashlib.sha256(registered["query"].encode()).hexdigest()
+    assert "query" not in hashed
+    assert hashed["extensions"]["persistedQuery"]["sha256Hash"] == expected
+    assert registered["query"] in source  # the document shown in the generated file
+
+
+def test_without_the_flag_routes_arent_persisted(hub):
+    import inspect
+
+    assert "persisted" not in inspect.getsource(sys.modules[f"{hub.__name__}.client"])

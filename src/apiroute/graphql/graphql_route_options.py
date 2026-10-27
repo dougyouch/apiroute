@@ -17,3 +17,4 @@ class GraphQLRouteOptions(NamedTuple):
     validate: bool = True
     paginate: str | None = None
     cursor: str = "after"
+    persisted: bool = False

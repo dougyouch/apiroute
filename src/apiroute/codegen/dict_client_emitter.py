@@ -190,6 +190,8 @@ def _graphql_decorator(out: SourceWriter, operation: Operation) -> None:
             out.line(f"path={py_str(spec.path)},")
         if spec.paginate is not None:
             out.line(f"paginate={py_str(spec.paginate)},")
+        if spec.persisted:
+            out.line("persisted=True,")
         renamed = {
             p.wire_name: p.name
             for p in operation.parameters
