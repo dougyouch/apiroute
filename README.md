@@ -267,7 +267,15 @@ retries = Retries(attempts=5, sleep=0.1, backoff=2, max_sleep=10, jitter=True)
 `graphql_route` declares a GraphQL operation that you write yourself. In GraphQL the caller decides what the response contains, so apiroute leaves the selection set to you and takes care of the rest: the request envelope, variables, errors and unwrapping. GraphQL operations can sit next to REST routes in the same client, sharing its headers, retries, hooks and test helpers.
 
 ```python
+from dataclasses import dataclass
+
 from apiroute import Client, graphql_route
+
+
+@dataclass
+class Repository:
+    name: str
+    issues: dict
 
 
 class GitHub(Client):
@@ -308,6 +316,16 @@ class GitHub(Client):
 Most GraphQL lists are Relay connections, read a page at a time. `paginate=` turns a route into an iterator over every item, following `pageInfo.endCursor` for you:
 
 ```python
+from collections.abc import Iterator
+from dataclasses import dataclass
+
+
+@dataclass
+class Issue:
+    number: int
+    title: str
+
+
 class GitHub(Client):
     base_url = "https://api.github.com"
 
