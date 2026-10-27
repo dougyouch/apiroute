@@ -95,7 +95,7 @@ apis:
 ebay-apiroute's script also has an eBay-specific `_write_trading_version`. Drop it, or adapt it if your auth class must read a value from a spec.
 
 `pyproject.toml`:
-- Depend on `apiroute>=<current>` (add `apiroute[soap]` when any API is a WSDL; GraphQL clients need nothing extra at run time) and `pydantic>=2`. Put `apiroute[codegen]`, `pytest` and `ruff` in the `dev` dependency group.
+- Depend on `apiroute>=<current>` (add `apiroute[soap]` when any API is a WSDL; GraphQL clients need nothing extra at run time) and `pydantic>=2.6` (generated models fail on pydantic 2.1–2.5). Put `apiroute[codegen]`, `pytest` and `ruff` in the `dev` dependency group.
 - Set ruff's `line-length = 100` and `extend-exclude = ["specs"]`.
 - Keep `specs/` out of the sdist.
 

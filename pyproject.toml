@@ -49,7 +49,7 @@ Changelog = "https://github.com/dougyouch/apiroute/blob/main/CHANGELOG.md"
 
 [project.optional-dependencies]
 pydantic = [
-    "pydantic>=2",
+    "pydantic>=2.6",
 ]
 soap = [
     "defusedxml>=0.7",
@@ -60,7 +60,7 @@ graphql = [
 codegen = [
     "defusedxml>=0.7",
     "graphql-core>=3.2",
-    "pydantic>=2",
+    "pydantic>=2.6",
     "pyyaml>=6",
 ]
 
@@ -74,7 +74,7 @@ apiroute = "apiroute.testing.pytest_plugin"
 dev = [
     "defusedxml>=0.7",
     "graphql-core>=3.2",
-    "pydantic>=2",
+    "pydantic>=2.6",
     "pytest>=8",
     "pyyaml>=6",
     "ruff>=0.6",

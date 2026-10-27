@@ -1,6 +1,10 @@
 version = 1
 revision = 5
 requires-python = ">=3.10"
+resolution-markers = [
+    "python_full_version >= '3.15'",
+    "python_full_version < '3.15'",
+]
 
 [[package]]
 name = "annotated-types"
@@ -67,8 +71,8 @@ requires-dist = [
     { name = "graphql-core", marker = "extra == 'codegen'", specifier = ">=3.2" },
     { name = "graphql-core", marker = "extra == 'graphql'", specifier = ">=3.2" },
     { name = "httpx", specifier = ">=0.27" },
-    { name = "pydantic", marker = "extra == 'codegen'", specifier = ">=2" },
-    { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2" },
+    { name = "pydantic", marker = "extra == 'codegen'", specifier = ">=2.6" },
+    { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.6" },
     { name = "pyyaml", marker = "extra == 'codegen'", specifier = ">=6" },
 ]
 provides-extras = ["pydantic", "soap", "graphql", "codegen"]
@@ -77,7 +81,7 @@ provides-extras = ["pydantic", "soap", "graphql", "codegen"]
 dev = [
     { name = "defusedxml", specifier = ">=0.7" },
     { name = "graphql-core", specifier = ">=3.2" },
-    { name = "pydantic", specifier = ">=2" },
+    { name = "pydantic", specifier = ">=2.6" },
     { name = "pytest", specifier = ">=8" },
     { name = "pyyaml", specifier = ">=6" },
     { name = "ruff", specifier = ">=0.6" },
