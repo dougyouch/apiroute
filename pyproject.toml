@@ -1,12 +1,28 @@
 [project]
 name = "apiroute"
 version = "1.6.0"
-description = "Build API clients declaratively: one @route per endpoint, safe defaults, httpx underneath."
+description = "Declarative Python API clients for REST, GraphQL and SOAP on httpx: one decorator per call, with retries, async, typed models, test mocks and OpenAPI/WSDL code generation."
 readme = "README.md"
 license = "MIT"
 authors = [{ name = "Doug Youch", email = "dougyouch@gmail.com" }]
 requires-python = ">=3.10"
-keywords = ["api", "client", "http", "httpx", "rest", "declarative", "async"]
+keywords = [
+    "api",
+    "client",
+    "http",
+    "httpx",
+    "rest",
+    "graphql",
+    "soap",
+    "openapi",
+    "swagger",
+    "wsdl",
+    "codegen",
+    "declarative",
+    "async",
+    "pydantic",
+    "testing",
+]
 classifiers = [
     "Development Status :: 5 - Production/Stable",
     "Framework :: AsyncIO",
@@ -38,6 +54,9 @@ pydantic = [
 soap = [
     "defusedxml>=0.7",
 ]
+graphql = [
+    "graphql-core>=3.2",
+]
 codegen = [
     "defusedxml>=0.7",
     "pydantic>=2",
@@ -53,6 +72,7 @@ apiroute = "apiroute.testing.pytest_plugin"
 [dependency-groups]
 dev = [
     "defusedxml>=0.7",
+    "graphql-core>=3.2",
     "pydantic>=2",
     "pytest>=8",
     "pyyaml>=6",

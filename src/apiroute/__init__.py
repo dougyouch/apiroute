@@ -4,6 +4,7 @@ from apiroute.api_route_error import ApiRouteError
 from apiroute.argument_targets import Body, Header, Query
 from apiroute.client import Client
 from apiroute.from_client import FROM_CLIENT
+from apiroute.graphql import GraphQLError, graphql_route
 from apiroute.lazy_attribute import lazy
 from apiroute.lazy_exports import lazy_exports
 from apiroute.namespace import namespace
@@ -38,6 +39,7 @@ __all__ = [
     "Client",
     "FROM_CLIENT",
     "ApiRouteError",
+    "GraphQLError",
     "Header",
     "HttpxClientTransport",
     "OneShotTransport",
@@ -55,6 +57,7 @@ __all__ = [
     "UnexpectedResponse",
     "aclose_transports",
     "close_transports",
+    "graphql_route",
     "lazy",
     "lazy_exports",
     "namespace",

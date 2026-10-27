@@ -17,3 +17,6 @@ class RouteSpec(NamedTuple):
     body_format: Any = None
     decoder: Any = None
     operation: str | None = None
+    # False when repeating the request could repeat its effect (a GraphQL mutation): errors
+    # after the request may have reached the server are then never retried
+    idempotent: bool = True

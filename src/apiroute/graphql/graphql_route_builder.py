@@ -1,0 +1,90 @@
+import functools
+import inspect
+from collections.abc import Callable
+from typing import Any
+
+from apiroute.class_declaration import declares
+from apiroute.from_client import FROM_CLIENT
+from apiroute.graphql.graphql_body import GraphQLBody
+from apiroute.graphql.graphql_decoder import GraphQLDecoder
+from apiroute.graphql.graphql_document import GraphQLDocument
+from apiroute.graphql.graphql_operation import GraphQLOperation
+from apiroute.graphql.graphql_route_options import GraphQLRouteOptions
+from apiroute.graphql.graphql_syntax_check import check_syntax
+from apiroute.graphql.graphql_variable_binder import GraphQLVariableBinder
+from apiroute.route_spec import RouteSpec
+
+ACCEPT = "application/graphql-response+json, application/json"
+# GraphQL-over-HTTP servers answer a request they can't run with 400 and an errors body
+EXPECTED = (200, 400)
+_KEYWORD_ONLY = inspect.Parameter.KEYWORD_ONLY
+
+
+class GraphQLRouteBuilder:
+    """Turns graphql_route's options into a RouteSpec once the route's class and name are
+    known: its variables become the body template, filled from the method's arguments."""
+
+    def __init__(self, options: GraphQLRouteOptions):
+        self._options = options
+
+    def spec(self, owner: type, name: str, func: Callable) -> RouteSpec:
+        options = self._options
+        operation = self._operation
+        label = operation.name or options.operation_name or name
+        params = list(inspect.signature(func).parameters)[1:]
+        return RouteSpec(
+            method="POST",
+            path=options.path,
+            query=None,
+            body=self._binder(owner).template(params),
+            expected=EXPECTED,
+            returns="json",
+            timeout=options.timeout,
+            model=options.model,
+            headers={"Accept": ACCEPT, **(options.headers or {})},
+            body_format=GraphQLBody(options.document, operation.name),
+            decoder=GraphQLDecoder(label, options.data, options.errors),
+            operation=label,
+            idempotent=self._idempotent(operation),
+        )
+
+    def stub(self, owner: type, name: str) -> Callable:
+        """The function behind a route written without a def: one keyword-only parameter per
+        variable, required when the variable is, else defaulting to None (or the client's)."""
+        binder = self._binder(owner)
+        parameters = [inspect.Parameter("self", inspect.Parameter.POSITIONAL_OR_KEYWORD)]
+        parameters += [
+            self._parameter(owner, binder.param_name(variable.name), variable.required)
+            for variable in self._operation.variables
+        ]
+
+        def stub(*args: Any, **kwargs: Any) -> Any:
+            raise NotImplementedError("generated routes are called through the client")
+
+        stub.__name__ = name
+        stub.__qualname__ = f"{owner.__qualname__}.{name}"
+        stub.__module__ = owner.__module__
+        stub.__doc__ = self._options.document
+        stub.__signature__ = inspect.Signature(parameters)
+        return stub
+
+    @functools.cached_property
+    def _operation(self) -> GraphQLOperation:
+        check_syntax(self._options.document)
+        return GraphQLDocument(self._options.document).operation(self._options.operation_name)
+
+    def _binder(self, owner: type) -> GraphQLVariableBinder:
+        return GraphQLVariableBinder(self._operation.variables, self._options.variables, owner)
+
+    def _idempotent(self, operation: GraphQLOperation) -> bool:
+        if self._options.idempotent is not None:
+            return self._options.idempotent
+        return operation.type != "mutation"
+
+    @staticmethod
+    def _parameter(owner: type, name: str, required: bool) -> inspect.Parameter:
+        if declares(owner, name):
+            return inspect.Parameter(name, _KEYWORD_ONLY, default=FROM_CLIENT)
+        if required:
+            return inspect.Parameter(name, _KEYWORD_ONLY)
+        return inspect.Parameter(name, _KEYWORD_ONLY, default=None)

@@ -42,6 +42,7 @@ class RouteDefinition:
     body_format: Any = None
     decoder: Any = None
     operation: str | None = None
+    idempotent: bool = True
 
     @property
     def call_signature(self) -> inspect.Signature:

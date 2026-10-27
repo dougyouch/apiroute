@@ -70,6 +70,7 @@ class RouteCompiler:
             body_format=self._body_format(),
             decoder=self._spec.decoder,
             operation=self._spec.operation,
+            idempotent=self._spec.idempotent,
         )
 
     def _signature(self) -> inspect.Signature:

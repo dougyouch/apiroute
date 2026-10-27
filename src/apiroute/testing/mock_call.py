@@ -46,5 +46,14 @@ class MockCall:
     def json(self) -> Any:
         return json.loads(self.request.content)
 
+    @property
+    def graphql_variables(self) -> Any:
+        """The variables a GraphQL request sent, or None when its body isn't a JSON object."""
+        try:
+            body = self.json()
+        except ValueError:
+            return None
+        return body.get("variables") if isinstance(body, dict) else None
+
     def describe(self) -> str:
         return f"{self.operation or '(no operation)'}: {self.method} {self.url}"
