@@ -37,6 +37,27 @@ jobs:
       - run: uv run --no-sync python -c "import httpx, pydantic; print(httpx.__version__, pydantic.VERSION)"
       - run: uv run --no-sync pytest
 
+  # Generated models lean on pydantic behaviour that has changed between minor versions:
+  # typed clients failed on 2.1–2.5 while the newest (test) and the floor (lowest-dependencies)
+  # both passed. So run the suite on the newest patch of every minor between them. When a new
+  # pydantic minor comes out, the test job picks it up; add the one it replaced here.
+  pydantic-versions:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        pydantic: ["2.6", "2.7", "2.8", "2.9", "2.10", "2.11", "2.12", "2.13"]
+    name: pydantic ${{ matrix.pydantic }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v6
+        with:
+          python-version: "3.12"
+      - run: uv sync
+      - run: uv pip install "pydantic==${{ matrix.pydantic }}.*"
+      - run: uv run --no-sync python -c "import pydantic; print(pydantic.VERSION)"
+      - run: uv run --no-sync pytest
+
   without-pydantic:
     runs-on: ubuntu-latest
     steps:
