@@ -4,6 +4,7 @@ from apiroute.codegen.graphql.collected_definition import CollectedDefinition
 from apiroute.codegen.graphql.field_collector import FieldCollector
 from apiroute.codegen.graphql.graphql_problem import GraphQLProblem
 from apiroute.codegen.graphql.operation_collector import OperationCollector
+from apiroute.codegen.graphql.pagination_check import PaginationCheck
 from apiroute.codegen.graphql.typename_inserter import TypenameInserter
 
 
@@ -26,9 +27,12 @@ class OperationDocuments:
         from graphql import validate
 
         found: list[GraphQLProblem] = []
+        pagination = PaginationCheck(self._schema, self.collector)
         for operation in self._collected.operations:
             for error in validate(self._schema, self._document(operation.node)):
                 found.append(GraphQLProblem.from_error(error))
+            if operation.paginate is not None:
+                found += pagination.problems(operation)
         return _unique(found)
 
     def warnings(self) -> list[GraphQLProblem]:

@@ -2,6 +2,7 @@ from pathlib import Path
 
 from apiroute.codegen.graphql.collected_definition import CollectedDefinition
 from apiroute.codegen.graphql.graphql_problem import GraphQLProblem
+from apiroute.codegen.graphql.paginate_directive import PaginateDirective
 
 SUFFIXES = (".graphql", ".gql")
 
@@ -50,8 +51,13 @@ class OperationCollector:
     def _add(self, node, section: str, comment: str) -> None:
         from graphql import FragmentDefinitionNode, OperationDefinitionNode, OperationType
 
+        if isinstance(node, (FragmentDefinitionNode, OperationDefinitionNode)):
+            node, marks = PaginateDirective().strip(node)
         definition = CollectedDefinition(node, section, comment)
         if isinstance(node, FragmentDefinitionNode):
+            for mark in marks:
+                message = "@paginate belongs on a field of the operation, not in a fragment"
+                self.problems.append(GraphQLProblem.at(mark.field, message))
             self._add_fragment(definition)
         elif not isinstance(node, OperationDefinitionNode):
             self.problems.append(
@@ -62,7 +68,16 @@ class OperationCollector:
         elif node.operation == OperationType.SUBSCRIPTION:
             self.problems.append(GraphQLProblem.at(node, "subscriptions aren't supported"))
         else:
-            self._add_operation(definition)
+            self._add_operation(self._paginated(definition, marks))
+
+    def _paginated(self, definition: CollectedDefinition, marks: list) -> CollectedDefinition:
+        for extra in marks[1:]:
+            first = GraphQLProblem.at(marks[0].field, "")
+            message = (
+                f"an operation paginates one connection; @paginate is also at line {first.line}"
+            )
+            self.problems.append(GraphQLProblem.at(extra.field, message))
+        return definition._replace(paginate=marks[0]) if marks else definition
 
     def _add_operation(self, definition: CollectedDefinition) -> None:
         name = definition.node.name.value

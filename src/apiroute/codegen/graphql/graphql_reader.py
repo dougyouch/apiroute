@@ -15,6 +15,7 @@ from apiroute.codegen.graphql.collected_definition import CollectedDefinition
 from apiroute.codegen.graphql.graphql_type_mapper import GraphQLTypeMapper
 from apiroute.codegen.graphql.operation_collector import OperationCollector
 from apiroute.codegen.graphql.operation_documents import OperationDocuments
+from apiroute.codegen.graphql.paginated_item import paginated_item
 from apiroute.codegen.graphql.schema_fetcher import SchemaFetcher
 from apiroute.codegen.graphql.selection_model_mapper import SelectionModelMapper
 from apiroute.codegen.python_names import RESERVED, pascal_case, snake_case, unique
@@ -124,20 +125,25 @@ class GraphQLReader:
         operation_name = node.name.value
         prepared, _ = documents.prepared(collected)
         _, path = self._endpoint_parts()
+        response = results.result(prepared, operation_name)
+        paginate = collected.paginate.path if collected.paginate else None
+        if paginate is not None:
+            response = paginated_item(types.models, response, paginate)
         return Operation(
             name=unique(snake_case(operation_name), taken_methods, RESERVED),
             method="POST",
             path=path,
             summary=collected.comment,
             parameters=_variables(node, schema, types),
-            response=results.result(prepared, operation_name),
-            response_plain="dict[str, Any]",
+            response=response,
+            response_plain="Iterator[dict[str, Any]]" if paginate else "dict[str, Any]",
             operation_id=operation_name,
             graphql=GraphQLOperationSpec(
                 document=documents.text(collected),
                 operation_name=operation_name,
                 operation_type=node.operation.value,
                 path=path,
+                paginate=paginate,
             ),
         )
 

@@ -21,6 +21,11 @@ class GraphQLTypeMapper:
         self._scalars = scalars
         self._names: dict[str, str] = {}  # schema type name -> model name
 
+    @property
+    def models(self) -> dict[str, Model]:
+        """Every model made so far, by name (result models are added to the same dict)."""
+        return self._models
+
     def leaf(self, named: Any) -> TypeRef:
         """A scalar's or an enum's type."""
         from graphql import is_enum_type

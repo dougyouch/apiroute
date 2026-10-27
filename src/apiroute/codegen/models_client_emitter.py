@@ -39,9 +39,13 @@ class ModelsClientEmitter:
         typing_names = [n for n in ("Any", "Literal") if re.search(rf"\b{n}\b", signatures)]
         if used:
             typing_names.append("TYPE_CHECKING")
+        standard = []
+        if re.search(r"\bIterator\b", signatures):
+            standard.append("from collections.abc import Iterator")
         if typing_names:
-            out.line(f"from typing import {import_names(typing_names)}")
-            out.line()
+            standard.append(f"from typing import {import_names(typing_names)}")
+        if standard:
+            out.lines(*standard, "")
         out.line("from apiroute import TypedClient")
         if used:
             # for type checkers only: at run time each response type is looked up in .models
@@ -63,9 +67,7 @@ class ModelsClientEmitter:
         texts = []
         for operation in self._group.operations:
             texts += _signature(operation)
-            texts.append(
-                operation.response.expr if operation.response else _plain_return(operation)
-            )
+            texts.append(_returned(operation))
         return " ".join(texts)
 
     def _used_models(self) -> set[str]:
@@ -76,7 +78,7 @@ class ModelsClientEmitter:
 
     def _method(self, out: SourceWriter, operation: Operation) -> None:
         response = operation.response
-        returned = response.expr if response else _plain_return(operation)
+        returned = _returned(operation)
         out.line(f"def {operation.name}(")
         with out.indented():
             out.line("self,")
@@ -88,7 +90,8 @@ class ModelsClientEmitter:
                 out.docstring(operation.summary)
             response_type = py_str(response.expr) if response else "None"
             arguments = ", ".join([py_str(operation.name), response_type, *_forwarded(operation)])
-            out.line(f"return self._call({arguments})")
+            call = "_paginate" if _is_paginated(operation) else "_call"
+            out.line(f"return self.{call}({arguments})")
 
 
 def _signature(operation: Operation) -> list[str]:
@@ -117,6 +120,18 @@ def _forwarded(operation: Operation) -> list[str]:
     if operation.body is not None:
         names.append("body")
     return [f"{name}={name}" for name in names]
+
+
+def _returned(operation: Operation) -> str:
+    if operation.response is None:
+        return _plain_return(operation)
+    if _is_paginated(operation):
+        return f"Iterator[{operation.response.expr}]"
+    return operation.response.expr
+
+
+def _is_paginated(operation: Operation) -> bool:
+    return operation.graphql is not None and operation.graphql.paginate is not None
 
 
 def _plain_return(operation: Operation) -> str:

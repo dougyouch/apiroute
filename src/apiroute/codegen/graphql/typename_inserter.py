@@ -1,7 +1,6 @@
-import copy
-import dataclasses
 from typing import Any
 
+from apiroute.codegen.graphql.ast_nodes import replaced
 from apiroute.codegen.graphql.field_collector import FieldCollector
 
 
@@ -36,7 +35,7 @@ class TypenameInserter:
         ):
             typename = FieldNode(name=NameNode(value="__typename"), arguments=(), directives=())
             selections.insert(0, typename)
-        return _replaced(selection_set, selections=tuple(selections))
+        return replaced(selection_set, selections=tuple(selections))
 
     def _selection(self, selection: Any, parent: Any) -> Any:
         from graphql import FieldNode, FragmentSpreadNode, get_named_type
@@ -56,18 +55,7 @@ class TypenameInserter:
 
 
 def _with_selection_set(node: Any, selection_set: Any) -> Any:
-    return _replaced(node, selection_set=selection_set)
-
-
-def _replaced(node: Any, **changes: Any) -> Any:
-    """A copy of an AST node with changes: graphql-core 3.3's nodes are frozen dataclasses,
-    3.2's plain objects."""
-    if dataclasses.is_dataclass(node):
-        return dataclasses.replace(node, **changes)
-    changed = copy.copy(node)
-    for name, value in changes.items():
-        setattr(changed, name, value)
-    return changed
+    return replaced(node, selection_set=selection_set)
 
 
 def _is_typename(selection: Any) -> bool:

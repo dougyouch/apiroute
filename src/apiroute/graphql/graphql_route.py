@@ -19,6 +19,8 @@ def graphql_route(
     operation_name: str | None = None,
     idempotent: bool | None = None,
     validate: bool = True,
+    paginate: str | None = None,
+    cursor: str = "after",
 ) -> GraphQLRouteDecorator:
     """Declares a GraphQL operation, written by hand, on a def or on its own:
 
@@ -41,6 +43,11 @@ def graphql_route(
     the request may have reached the server, unless idempotent=True. When the class (or one
     enclosing its section) sets graphql_schema, the document is validated against it as the
     route is compiled; validate=False skips that for this route.
+
+    paginate="repository.issues" makes the method return an iterator over that Relay
+    connection's items (its nodes, or each edge's node), across pages: each page is requested
+    as iteration reaches it, with the last pageInfo.endCursor as the $after variable (cursor=
+    names another). Items are converted by model= or an Iterator[Item] return annotation.
     """
     options = GraphQLRouteOptions(
         document=document,
@@ -54,6 +61,8 @@ def graphql_route(
         operation_name=operation_name,
         idempotent=idempotent,
         validate=validate,
+        paginate=paginate,
+        cursor=cursor,
     )
     return GraphQLRouteDecorator(GraphQLRouteBuilder(options))
 
