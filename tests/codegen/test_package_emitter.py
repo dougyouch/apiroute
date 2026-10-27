@@ -46,3 +46,9 @@ def test_refuses_a_directory_it_did_not_generate(tmp_path):
     (tmp_path / "client.py").write_text("print('hand written')\n")
     with pytest.raises(FileExistsError, match="isn't a package apiroute generated"):
         PackageEmitter(definition(), with_models=False).write(tmp_path)
+
+
+def test_a_level_without_models_has_a_typed_empty_all():
+    definition = OpenApiReader(str(FIXTURES / "plain.yaml"), "PlainApi").read()
+    index = PackageEmitter(definition, with_models=True).files()["models/models.py"]
+    assert "__all__: list[str] = []\n" in index
