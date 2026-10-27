@@ -20,7 +20,6 @@ All notable changes to this project are documented here. The format follows
 
 ### Features
 
-* send files in GraphQL variables as multipart requests ([f99ad55](https://github.com/dougyouch/apiroute/commit/f99ad555ce228d263cd0c8a416d7e9dcf9ad06ec))
 * send files in GraphQL variables as multipart requests ([aae7d90](https://github.com/dougyouch/apiroute/commit/aae7d90caa6dd3852167ed90294176a0a602b012))
 
 
@@ -33,7 +32,6 @@ All notable changes to this project are documented here. The format follows
 
 ### Features
 
-* send GraphQL operations as automatic persisted queries ([3d703c5](https://github.com/dougyouch/apiroute/commit/3d703c5c002a559838d205f172ea0b95f82e7f33))
 * send GraphQL operations as automatic persisted queries ([9bb32c9](https://github.com/dougyouch/apiroute/commit/9bb32c96775efbcb63299c70a3e95f4605f6a640))
 
 
@@ -46,15 +44,13 @@ All notable changes to this project are documented here. The format follows
 
 ### Features
 
-* iterate GraphQL connections across pages (paginate= and [@paginate](https://github.com/paginate)) ([e1f991d](https://github.com/dougyouch/apiroute/commit/e1f991de303ca581bef7ccc7fedb3bff025d75b6))
-* iterate GraphQL connections across pages (paginate= and [@paginate](https://github.com/paginate)) ([b868545](https://github.com/dougyouch/apiroute/commit/b8685459568732ff453ea64606e6e63da3b9c553))
+* iterate GraphQL connections across pages (paginate= and `@paginate`) ([b868545](https://github.com/dougyouch/apiroute/commit/b8685459568732ff453ea64606e6e63da3b9c553))
 
 ## [1.9.0](https://github.com/dougyouch/apiroute/compare/v1.8.0...v1.9.0) (2026-10-27)
 
 
 ### Features
 
-* generate GraphQL clients from a schema and hand-written operations ([dd4920e](https://github.com/dougyouch/apiroute/commit/dd4920e2c485396b4ecd8a26ca171d400fbe444d))
 * generate GraphQL clients from a schema and hand-written operations ([a11c804](https://github.com/dougyouch/apiroute/commit/a11c80480c86bc7b7bc2d12658473a4d4f00a53c))
 
 
@@ -73,7 +69,6 @@ All notable changes to this project are documented here. The format follows
 
 ### Features
 
-* validate graphql_route documents against graphql_schema ([f3a0373](https://github.com/dougyouch/apiroute/commit/f3a0373ea3d8db1e44af6e0688b7baab2a570c6a))
 * validate graphql_route documents against graphql_schema ([500f3e1](https://github.com/dougyouch/apiroute/commit/500f3e1be920cee2d0bbdc4834129a8273efa269))
 
 
@@ -86,7 +81,6 @@ All notable changes to this project are documented here. The format follows
 
 ### Features
 
-* add graphql_route for hand-written GraphQL operations ([ddb0546](https://github.com/dougyouch/apiroute/commit/ddb054641077497edd8ad4e0dfcae67863b540c6))
 * add graphql_route for hand-written GraphQL operations ([ede15d0](https://github.com/dougyouch/apiroute/commit/ede15d038c51f691e9139d26b91186b9eebce7c3))
 
 ## [1.6.0](https://github.com/dougyouch/apiroute/compare/v1.5.1...v1.6.0) (2026-10-27)
@@ -94,7 +88,6 @@ All notable changes to this project are documented here. The format follows
 
 ### Features
 
-* add apiroute.testing with MockTransport and a pytest plugin ([0304ac9](https://github.com/dougyouch/apiroute/commit/0304ac9d099e26ee720d15392115eef49eded1cd))
 * add apiroute.testing with MockTransport and a pytest plugin ([cecb862](https://github.com/dougyouch/apiroute/commit/cecb862e5b4ff27d94a8d0b1d90002017ce73cc7))
 
 ## [1.5.1](https://github.com/dougyouch/apiroute/compare/v1.5.0...v1.5.1) (2026-10-26)
@@ -102,7 +95,6 @@ All notable changes to this project are documented here. The format follows
 
 ### Bug Fixes
 
-* keep a base_url's query string on the request ([2aeebae](https://github.com/dougyouch/apiroute/commit/2aeebae6dcc9d5a505d875ee24f639d57d4cb63a))
 * keep a base_url's query string on the request ([31b6560](https://github.com/dougyouch/apiroute/commit/31b6560fa826bb05e1a4e968e8a088761bba461c))
 
 ## [1.5.0](https://github.com/dougyouch/apiroute/compare/v1.4.0...v1.5.0) (2026-10-26)
@@ -110,7 +102,6 @@ All notable changes to this project are documented here. The format follows
 
 ### Features
 
-* follow_redirects client setting, sent with each request ([44eab2f](https://github.com/dougyouch/apiroute/commit/44eab2f236f598f4e51e8089fd4927b3dd7d7ecc))
 * follow_redirects client setting, sent with each request ([5272aa0](https://github.com/dougyouch/apiroute/commit/5272aa0ea8df648ac6bc87e45c6c86f4c836c998))
 
 ## [1.4.0](https://github.com/dougyouch/apiroute/compare/v1.3.0...v1.4.0) (2026-10-26)
@@ -149,7 +140,6 @@ All notable changes to this project are documented here. The format follows
 
 ### Features
 
-* auth base classes for generated clients, operation names and SOAP headers ([feab2db](https://github.com/dougyouch/apiroute/commit/feab2db9de25cd8349842947349a68612c33ec15))
 * auth base classes for generated clients, operation names and SOAP headers ([2313b19](https://github.com/dougyouch/apiroute/commit/2313b19768a36b0301b84ee27c678e9f9ef76055))
 * **codegen:** plain-text docstrings from HTML spec descriptions ([6ca25d9](https://github.com/dougyouch/apiroute/commit/6ca25d99efcd7473e8a8ff049abf870cf25a009e))
 
