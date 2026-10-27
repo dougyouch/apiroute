@@ -33,6 +33,13 @@ def test_retry_after_seconds_capped_at_max_sleep():
     assert capped.delay_before_retry(unexpected(429, {"Retry-After": "60"}), 1) == 5
 
 
+def test_retry_after_never_shortens_the_backoff():
+    retries = Retries.exponential(attempts=4, initial=15, max=240)
+    assert policy(retries).delay_before_retry(unexpected(429, {"Retry-After": "0"}), 1) == 15
+    assert policy(retries).delay_before_retry(unexpected(429, {"Retry-After": "5"}), 2) == 30
+    assert policy(retries).delay_before_retry(unexpected(429, {"Retry-After": "90"}), 2) == 90
+
+
 def test_logs_retried_and_final_failures(caplog):
     logged = policy(Retries(attempts=2, sleep=0))
     logged.delay_before_retry(OSError("first"), 1)

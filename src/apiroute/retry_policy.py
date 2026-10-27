@@ -46,10 +46,14 @@ class RetryPolicy:
         return attempt < self._retries.attempts and self._should_retry(error, attempt)
 
     def _delay(self, error: Exception, attempt: int) -> float:
+        """The backoff delay, lengthened to a longer Retry-After. Retry-After is the least the
+        server asks for, so it never shortens the backoff: some APIs answer a 429 with
+        Retry-After: 0."""
+        backoff = self._retries.delay(attempt)
         retry_after = _retry_after_seconds(error)
         if retry_after is None:
-            return self._retries.delay(attempt)
-        return self._retries.capped(retry_after)
+            return backoff
+        return self._retries.capped(max(retry_after, backoff))
 
 
 def _retry_after_seconds(error: Exception) -> float | None:
