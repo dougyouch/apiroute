@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.1.0](https://github.com/dougyouch/apiroute/compare/v2.0.1...v2.1.0) (2026-10-27)
+
+
+### Features
+
+* static types for routes, sections and generated clients ([37f7ab6](https://github.com/dougyouch/apiroute/commit/37f7ab6253fa840421582e81bc4dacc841bafc76))
+
+
+### Bug Fixes
+
+* require pydantic 2.6, as generated models fail on 2.1–2.5 ([5e26a4f](https://github.com/dougyouch/apiroute/commit/5e26a4f8d48596dcb4dfc96fb9a170796df05176))
+
 ## [2.0.1](https://github.com/dougyouch/apiroute/compare/v2.0.0...v2.0.1) (2026-10-27)
 
 
