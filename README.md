@@ -340,6 +340,28 @@ viewer = graphql_route("query Viewer { viewer { login } }", persisted=True)
 - **Other GraphQL errors** raise as usual, without another request. Works with `.aio` and `paginate=`, where every page is sent by hash.
 - **Logging:** protocol replies (a miss, or not supported) are logged at DEBUG, not as WARNING failures.
 
+### File uploads
+
+Put a file in a variable and the call is sent as a [GraphQL multipart request](https://github.com/jaydenseric/graphql-multipart-request-spec), the format GraphQL Yoga, Apollo Server (with `graphql-upload`), Hasura and most GraphQL servers accept:
+
+```python
+from apiroute.graphql import Upload
+
+set_avatar = graphql_route(
+    "mutation SetAvatar($userId: ID!, $file: Upload!) { setAvatar(userId: $userId, file: $file) { url } }"
+)
+
+client.set_avatar(user_id="u1", file=Upload("avatar.png"))  # a path
+client.set_avatar(user_id="u1", file=Upload(png_bytes, "me.png"))  # bytes, with a filename
+with open("avatar.png", "rb") as f:
+    client.set_avatar(user_id="u1", file=f)  # an open binary file
+```
+
+- **`Upload(source, filename=None, content_type=None)`** takes bytes, a path, or a binary file object. The filename defaults to the path's or file's name, and the content type is guessed from the filename (else `application/octet-stream`).
+- **Files can be anywhere in the variables:** lists of files, and files inside input objects. The request has `operations` (the usual JSON, with each file's place as `null`), `map`, and one part per file. Calls without files are plain JSON, as before.
+- **Files are read when the request is built**, so a retry, or a persisted-query registration, resends the same bytes. Large files are held in memory.
+- **Apollo Server** rejects multipart requests without a CSRF header. Add `headers = {"Apollo-Require-Preflight": "true"}` to the client or route.
+
 ### Schema validation
 
 Set `graphql_schema` and every GraphQL route is validated against the API's schema when the class is created. A misspelled field, a wrong argument, or a variable of the wrong type fails at import time instead of in production:
@@ -661,6 +683,7 @@ result.repository.stargazer_count  # RepositoryResult -> RepositoryRepository ->
 - **Methods return the whole `data`.** `gh.repos.repository(...)` returns `{"repository": ...}`, not the repository, so adding a second field to an operation never changes a method's return type.
 - **Models follow your selections.** With `--models`, each operation gets `<Operation>Result` and one model per selected object, named by its path (`RepositoryRepositoryOwner`). Aliases name fields, nullable fields are `| None`, fields under `@include`/`@skip` default to `None`, and fragments are merged into the models that use them. A selection on an interface or union with type conditions (`... on User`) becomes a union of one model per named type plus an `...Other` fallback, told apart by `__typename`, which the generator adds to the query where it's missing.
 - **Inputs, enums and scalars.** Input objects and enums your operations use become models and `Literal` aliases. `Int`, `Float`, `String`, `ID` and `Boolean` map to Python types; custom scalars are `Any` unless `--scalar Name=module:type` maps them.
+- **File uploads.** An `Upload` (or `File`) scalar is a custom scalar, so it's `Any` in generated methods and input models. Pass `Upload(...)` or an open file there, in dict or typed calls, and the call is sent as a multipart request.
 - **Persisted queries.** `--persisted-queries` generates every route with `persisted=True`, sending the hash of the document shown in the generated file.
 - **Pagination with `@paginate`.** Put it on a connection field and the generated method pages through it, as with `paginate=`. The directive is apiroute's own: it's removed before the query is validated or sent. The method returns `Iterator[dict[str, Any]]`, or `Iterator[<item model>]` from `.models`, and the generator checks for `$after`, `pageInfo { hasNextPage endCursor }` and `nodes` or `edges { node }`:
 

@@ -73,6 +73,8 @@ class GraphQLRouteBuilder:
             "hash": spec._replace(
                 body_format=GraphQLBody(document, name, persisted="hash"),
                 decoder=spec.decoder.for_persisted_replies(),
+                # GraphQL Yoga's APQ plugin answers a miss with 404 and the usual errors body
+                expected=(*EXPECTED, 404),
             ),
             "register": spec._replace(
                 body_format=GraphQLBody(document, name, persisted="register")

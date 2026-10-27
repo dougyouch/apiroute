@@ -15,5 +15,13 @@ from apiroute.graphql.graphql_decoder import GraphQLDecoder
 from apiroute.graphql.graphql_document import GraphQLDocument
 from apiroute.graphql.graphql_error import GraphQLError
 from apiroute.graphql.graphql_route import graphql_route
+from apiroute.graphql.upload import Upload
 
-__all__ = ["GraphQLBody", "GraphQLDecoder", "GraphQLDocument", "GraphQLError", "graphql_route"]
+__all__ = [
+    "GraphQLBody",
+    "GraphQLDecoder",
+    "GraphQLDocument",
+    "GraphQLError",
+    "Upload",
+    "graphql_route",
+]
