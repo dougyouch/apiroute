@@ -4,6 +4,25 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.9.0](https://github.com/dougyouch/apiroute/compare/v1.8.0...v1.9.0) (2026-10-27)
+
+
+### Features
+
+* generate GraphQL clients from a schema and hand-written operations ([dd4920e](https://github.com/dougyouch/apiroute/commit/dd4920e2c485396b4ecd8a26ca171d400fbe444d))
+* generate GraphQL clients from a schema and hand-written operations ([a11c804](https://github.com/dougyouch/apiroute/commit/a11c80480c86bc7b7bc2d12658473a4d4f00a53c))
+
+
+### Bug Fixes
+
+* **codegen:** give the same names whichever Python generates ([f750134](https://github.com/dougyouch/apiroute/commit/f750134c74eaa3b9860e06bd01b3a8c8d6f02d65))
+* trust server GraphQL schemas, and read GitHub's error codes ([6eeb3e5](https://github.com/dougyouch/apiroute/commit/6eeb3e5c2d279a0ec082e3fb8d1fef96ce96bf14))
+
+
+### Documentation
+
+* propose apiroute generate graphql (OpenSpec change add-graphql-codegen) ([5004399](https://github.com/dougyouch/apiroute/commit/5004399020ad167db02cc7d5d2bc5fe6e7492cbc))
+
 ## [1.8.0](https://github.com/dougyouch/apiroute/compare/v1.7.0...v1.8.0) (2026-10-27)
 
 
