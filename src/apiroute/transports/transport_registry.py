@@ -39,6 +39,18 @@ class TransportRegistry:
             transports = [*self._by_class.values(), self._default]
         return [transport for transport in dict.fromkeys(transports) if transport is not None]
 
+    def snapshot(self) -> tuple[Any, dict[type, Any]]:
+        """The current registrations, to hand back to restore(); meant for tests."""
+        with self._lock:
+            return self._default, dict(self._by_class)
+
+    def restore(self, snapshot: tuple[Any, dict[type, Any]]) -> None:
+        """Puts back the registrations snapshot() returned, closing nothing."""
+        default, by_class = snapshot
+        with self._lock:
+            self._default = default
+            self._by_class = dict(by_class)
+
     def reset(self) -> None:
         """Forgets every registration, closing nothing; meant for tests."""
         with self._lock:

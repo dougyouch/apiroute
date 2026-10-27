@@ -1,5 +1,3 @@
-import asyncio
-import time
 from dataclasses import replace
 from typing import Any
 from urllib.parse import quote
@@ -9,6 +7,7 @@ import httpx
 from apiroute.base_url_validator import validate_base_url
 from apiroute.client_config import ClientConfig
 from apiroute.request_spec import RequestSpec
+from apiroute.retry_sleeper import RETRY_SLEEPER
 from apiroute.router import Router
 from apiroute.transport_configuration import ASYNC_TRANSPORTS, TRANSPORTS, is_async_transport
 from apiroute.transports.async_transport import AsyncTransport
@@ -34,8 +33,8 @@ class Client(Router):
     _base_url: str | None = None
     _transport: Transport | None = None
     _async_transport: AsyncTransport | None = None
-    _sleep = staticmethod(time.sleep)
-    _async_sleep = staticmethod(asyncio.sleep)
+    _sleep = staticmethod(RETRY_SLEEPER.sleep)
+    _async_sleep = staticmethod(RETRY_SLEEPER.async_sleep)
 
     def __init__(
         self,

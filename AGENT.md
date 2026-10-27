@@ -11,8 +11,9 @@ Guidance for AI coding agents (and people) working in this repository.
 | Path | What it is |
 | --- | --- |
 | `src/apiroute/` | The runtime library: `Client`, `Section`, `@route`, retries, request building, response conversion |
+| `src/apiroute/testing/` | Test helpers for code using apiroute clients: `MockTransport`, `mock_transport()`, `block_network()`, and the pytest plugin registered in `pyproject.toml` |
 | `src/apiroute/codegen/` | The generator behind the `apiroute` CLI (`cli.py`), with `openapi/` and `wsdl/` front ends and the emitters that write client code |
-| `tests/` | One test module per runtime class; `tests/codegen/`, `tests/soap/` and `tests/transports/` cover the generator, SOAP and transports |
+| `tests/` | One test module per runtime class; `tests/codegen/`, `tests/soap/`, `tests/testing/` and `tests/transports/` cover the generator, SOAP, the test helpers and transports |
 | `.github/workflows/` | `ci.yml` and `release.yml` (release-please and PyPI) |
 | `.agent/skills/apiroute-client.md` | Skill for creating and maintaining repositories of generated clients for any API |
 
