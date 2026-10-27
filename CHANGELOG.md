@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.2.0](https://github.com/dougyouch/apiroute/compare/v2.1.0...v2.2.0) (2026-10-27)
+
+
+### Features
+
+* Client.idempotent hook to mark requests safe to retry ([523dcab](https://github.com/dougyouch/apiroute/commit/523dcabf2568b4232f80c69c7cf3b0a6137cd904))
+
+
+### Bug Fixes
+
+* annotate empty __all__ in generated model indexes for mypy 1.x ([bb2d801](https://github.com/dougyouch/apiroute/commit/bb2d801fdd7f0b79e980ff9a60c9fae251e51b5c))
+
 ## [2.1.0](https://github.com/dougyouch/apiroute/compare/v2.0.1...v2.1.0) (2026-10-27)
 
 
