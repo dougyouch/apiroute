@@ -46,3 +46,16 @@ def test_registered_lists_each_transport_once_and_reset_forgets_them():
     assert registry.registered() == [api, default]
     registry.reset()
     assert isinstance(registry.for_class(Api), OneShotTransport)
+
+
+def test_restore_puts_back_a_snapshot():
+    registry = TransportRegistry()
+    first, second = FakeTransport(), FakeTransport()
+    registry.use(first)
+    registry.use(first, Api)
+    saved = registry.snapshot()
+    registry.reset()
+    registry.use(second, ChildApi)
+    registry.restore(saved)
+    assert registry.for_class(ChildApi) is first
+    assert registry.snapshot() == saved

@@ -293,7 +293,7 @@ An API class only describes the API. How its requests reach the network is a **t
 | `OneShotTransport` (default) | a new one per request, closed once the response is read | web servers, forking process managers, low request volume |
 | `PooledTransport` | one `httpx.Client` (one pool) shared by all threads | many threads or short-lived threads, HTTP/2 |
 | `ThreadLocalTransport` | one `httpx.Client` per thread, closed when the thread ends | a fixed set of worker threads |
-| `HttpxClientTransport` | an `httpx.Client` you own | tests (with `httpx.MockTransport`), custom setups |
+| `HttpxClientTransport` | an `httpx.Client` you own | custom setups; for tests, see [Testing](#testing) |
 
 Each takes `httpx.Client` keyword arguments, such as `limits`, `http2=True`, `proxy` and `verify`. The SSL context is built once per transport, so a one-shot request costs a new connection but not a reload of the CA bundle. Pooled and thread-local transports open new clients in a forked child.
 
@@ -347,6 +347,49 @@ await aclose_transports()  # at shutdown, inside the event loop
 ```
 
 Retries sleep with `asyncio.sleep`. `should_retry`, `escape_path`, `on_request`, `on_response` and callable headers stay plain sync methods, shared by both sides.
+
+## Testing
+
+`apiroute.testing` fakes the network at the transport. Your clients, routes, hooks and retries all run for real, but requests are answered by the test. Inside `mock_transport()`, every client sends its requests, sync and async, to one `MockTransport`, including a class that has its own `use_transport` registration. The previous registrations come back when the block ends.
+
+```python
+import httpx
+from apiroute.testing import mock_transport
+
+
+def test_user_name():
+    with mock_transport() as mock:
+        mock.on(operation="getUser").respond(httpx.Response(200, json={"login": "octocat"}))
+        mock.respond(httpx.ConnectError("down"), httpx.Response(201, json={}))  # queued, in order
+
+        assert app.user_name("octocat") == "octocat"  # code that builds its own GitHubApi
+        app.star("octocat")  # fails once, then the retry gets the 201
+
+    assert mock.calls[0].operation == "getUser"
+    assert mock.calls[0].params["fields"] == "login"
+    assert mock.last.json() == {"user": "octocat"}
+    assert mock.sleeps == [0.5]  # retries record their waits instead of sleeping
+```
+
+- **Answering requests.** A request gets the first matching route from `mock.on(operation=, method=, path=, where=)`, else the next response queued with `mock.respond(...)`, else the `handler` passed to `mock_transport(handler)`. Anything else raises `UnmatchedRequest`, which names the operation and URL. A route's responses are used in order and its last one repeats.
+- **What a response can be.** An `httpx.Response`, an exception to raise (an `httpx` error gets the request attached), or a function taking the `httpx.Request`, such as an `httpx.MockTransport` handler.
+- **Recorded calls.** Each `MockCall` in `mock.calls` (and in `route.calls`) has the `RequestSpec` that apiroute built and the `httpx.Request` encoded from it, as it would have gone on the wire. It also offers `operation`, `method`, `url`, `path`, `params`, `headers`, `content` and `json()`. `operation` is the spec's `operationId` for generated clients, so tests can match on the call name instead of the URL.
+- **Unused responses.** If the block ends normally with queued responses unused, it fails. Pass `assert_all_used=False` to allow it.
+- **Clients with their own transport.** A client given `transport=` keeps it. To mock a single instance, pass `transport=mock, async_transport=mock.aio` to a `MockTransport()` you build yourself.
+- **Retries without the mock.** `recorded_sleeps()` makes retries record their waits instead of sleeping, for tests that use respx or their own `httpx.MockTransport`.
+- **Blocking the real network.** `block_network()` fails any request that reaches httpx's real network transports, whatever the client's transport is. Mocks are unaffected.
+
+apiroute registers a pytest plugin with two opt-in fixtures. `apiroute_mock` is a `mock_transport()` that lasts for the test. `apiroute_block_network` guards the test, or the whole suite when used from an autouse fixture:
+
+```python
+# conftest.py
+import pytest
+
+
+@pytest.fixture(autouse=True)
+def _no_network(apiroute_block_network):
+    pass
+```
 
 ## Code generation
 

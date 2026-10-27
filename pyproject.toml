@@ -47,6 +47,9 @@ codegen = [
 [project.scripts]
 apiroute = "apiroute.codegen.cli:main"
 
+[project.entry-points.pytest11]
+apiroute = "apiroute.testing.pytest_plugin"
+
 [dependency-groups]
 dev = [
     "defusedxml>=0.7",

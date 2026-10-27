@@ -107,7 +107,7 @@ Every generated root client extends the `base_class` from `apis.yaml`, and apiro
 | SOAP header credentials | `soap_header(self, operation) -> dict`, in the same xmltodict shape as bodies |
 | Sandbox or region hosts | an `__init__` flag that sets `kwargs["base_url"]` from `type(self)._config.base_url` |
 
-Test each behaviour in `tests/` with `httpx.MockTransport`: the header or parameter on the wire, the sandbox host, and a SOAP header if any.
+Test each behaviour in `tests/` with `apiroute.testing`: inside `with mock_transport() as mock:`, call the client and assert on `mock.last`, which records the operation, the header or parameter on the wire, the sandbox host, and a SOAP header if any. Match responses by operation with `mock.on(operation=...)`.
 
 ## 5. README (generate it as part of setup)
 
