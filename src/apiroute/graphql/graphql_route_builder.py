@@ -70,8 +70,13 @@ class GraphQLRouteBuilder:
         name = self._operation.name
         document = self._options.document
         return {
-            mode: spec._replace(body_format=GraphQLBody(document, name, persisted=mode))
-            for mode in ("hash", "register")
+            "hash": spec._replace(
+                body_format=GraphQLBody(document, name, persisted="hash"),
+                decoder=spec.decoder.for_persisted_replies(),
+            ),
+            "register": spec._replace(
+                body_format=GraphQLBody(document, name, persisted="register")
+            ),
         }
 
     @property

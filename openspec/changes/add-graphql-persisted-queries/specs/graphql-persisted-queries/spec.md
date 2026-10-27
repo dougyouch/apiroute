@@ -23,22 +23,33 @@ When the hash-only request is answered with a GraphQL error recognized as `Persi
 - **THEN** the call raises that `GraphQLError`
 
 ### Requirement: Servers without APQ get full documents
-When the hash-only request is answered with an error recognized as `PersistedQueryNotSupported` (message `PersistedQueryNotSupported` or code `PERSISTED_QUERY_NOT_SUPPORTED`), the route SHALL send the full document without the extension, return that result, and send full documents without the extension for later calls of that route on that client instance. Other client instances SHALL NOT be affected.
+When the hash-only request is answered with an error recognized as `PersistedQueryNotSupported` (message `PersistedQueryNotSupported` or code `PERSISTED_QUERY_NOT_SUPPORTED`), or with any other request error (errors and no `data` key, meaning nothing was executed, as from a server that doesn't know the protocol), the route SHALL send the full document without the extension, return that result, and send full documents without the extension for later calls of that route on that client instance. Other client instances SHALL NOT be affected.
 
 #### Scenario: Unsupported server
 - **WHEN** the first request is answered `PersistedQueryNotSupported` and the second with data
 - **THEN** the call returns the data, and the next call sends one request with `query` and no extension
+
+#### Scenario: A server that doesn't know the protocol
+- **WHEN** the hash-only request is answered, as GitHub does, `{"errors": [{"message": "A query attribute must be specified and must be a string."}]}` with no `data`, and the full document with data
+- **THEN** the call returns the data, and later calls on that client send full documents only
 
 #### Scenario: Another client
 - **WHEN** a second client instance calls the same route
 - **THEN** its first request is hash-only
 
 ### Requirement: Other errors propagate
-A hash-only request answered with any other GraphQL error SHALL raise that `GraphQLError` without another request. Non-GraphQL failures (HTTP errors, network errors after retries) SHALL propagate as for any route.
+A hash-only request answered with an error from executing the query (the response has a `data` key) SHALL raise that `GraphQLError` without another request. An error from the full-document request SHALL raise as a plain `GraphQLError`. Non-GraphQL failures (HTTP errors, network errors after retries) SHALL propagate as for any route.
 
 #### Scenario: Validation error
-- **WHEN** the hash-only request is answered `{"errors": [{"message": "Cannot query field"}]}`
+- **WHEN** the hash-only request is answered `{"data": null, "errors": [{"message": "Cannot query field"}]}`
 - **THEN** the call raises `GraphQLError` after one request
+
+### Requirement: Protocol replies aren't logged as failures
+A hash-only request's protocol reply (a miss, not supported, or a request error treated as not supported) SHALL be logged at DEBUG, not WARNING. Other failed attempts SHALL still be logged at WARNING. The retry policy SHALL log an exception at the level its `log_level` attribute names, when it has one.
+
+#### Scenario: A miss
+- **WHEN** a persisted route misses and registers
+- **THEN** the hash-only attempt is logged at DEBUG, and no WARNING is logged
 
 ### Requirement: Persisted queries work with async calls and pagination
 Calls through `.aio` SHALL follow the same protocol. A route with both `persisted=True` and `paginate=` SHALL send every page hash-first, registering on a miss as above.

@@ -336,8 +336,9 @@ viewer = graphql_route("query Viewer { viewer { login } }", persisted=True)
 
 - **A cached query** is one request, carrying `extensions.persistedQuery` (the hash) and no `query`.
 - **On a miss** (`PersistedQueryNotFound`), the route sends the document once more along with the hash, which registers it, and returns that result. Later calls are hash-only again. You see one call and one result; `on_request` hooks and mocks see both requests.
-- **A server without APQ** (`PersistedQueryNotSupported`) gets the full document, and that client sends full documents for that route from then on. Other client instances aren't affected.
+- **A server without APQ** gets the full document, and that client sends full documents for that route from then on. Other client instances aren't affected. That covers a server answering `PersistedQueryNotSupported`, and one that doesn't know the protocol at all and answers with a request error, as GitHub does ("A query attribute must be specified").
 - **Other GraphQL errors** raise as usual, without another request. Works with `.aio` and `paginate=`, where every page is sent by hash.
+- **Logging:** protocol replies (a miss, or not supported) are logged at DEBUG, not as WARNING failures.
 
 ### Schema validation
 

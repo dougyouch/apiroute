@@ -14,4 +14,5 @@
 ## 3. Docs and checks
 
 - [x] 3.1 README: persisted queries in the GraphQL section and `--persisted-queries` in "GraphQL clients"; the client-repository skill
+- [x] 3.3 Follow-up: classify replies in a hash-only decoder (`PersistedQueryReply`, with request errors counted as not supported), and let `RetryPolicy` honour an exception's `log_level` so protocol replies log at DEBUG; tests; live checks against GitHub (no APQ) and Apollo
 - [x] 3.2 Ruff, the full suite, the lowest-dependencies run, and a check against a real APQ server (Apollo Server, run locally): a miss and registration, a cached hit, pagination, and a server with APQ turned off

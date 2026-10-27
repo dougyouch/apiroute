@@ -4,6 +4,7 @@ from typing import Any
 import httpx
 
 from apiroute.graphql.graphql_error import GraphQLError, describe_errors
+from apiroute.graphql.persisted_query_reply import PersistedQueryReply
 from apiroute.unexpected_response import UnexpectedResponse
 
 logger = logging.getLogger(__name__)
@@ -18,18 +19,32 @@ class GraphQLDecoder:
     With errors="partial", a response with errors and non-null data returns that data and
     logs the errors instead."""
 
-    def __init__(self, operation: str, data_path: str | None = None, errors: str = "raise"):
+    def __init__(
+        self,
+        operation: str,
+        data_path: str | None = None,
+        errors: str = "raise",
+        persisted_replies: bool = False,
+    ):
         if errors not in ERROR_MODES:
             raise ValueError(f"errors must be one of {ERROR_MODES}")
         self._operation = operation
+        self._data_path = data_path
         self._path = data_path.split(".") if data_path else []
         self._errors = errors
+        self._persisted_replies = persisted_replies
+
+    def for_persisted_replies(self) -> "GraphQLDecoder":
+        """This decoder for a hash-only persisted-query request: replies that aren't results
+        raise PersistedQueryReply, which the persisted call handles."""
+        return GraphQLDecoder(self._operation, self._data_path, self._errors, True)
 
     def __call__(self, response: httpx.Response) -> Any:
         body = self._body(response)
         errors = body.get("errors")
         data = body.get("data")
         if errors:
+            self._check_persisted_reply(errors, "data" in body, data, response)
             self._handle_errors(errors, data, response)
         elif not response.is_success:
             raise self._unexpected(response)
@@ -43,6 +58,15 @@ class GraphQLDecoder:
         if not isinstance(body, dict) or not ({"data", "errors"} & body.keys()):
             raise self._not_graphql(response)
         return body
+
+    def _check_persisted_reply(
+        self, errors: Any, has_data: bool, data: Any, response: httpx.Response
+    ) -> None:
+        if not self._persisted_replies or not isinstance(errors, list):
+            return
+        kind = PersistedQueryReply.kind_of(errors, has_data)
+        if kind is not None:
+            raise PersistedQueryReply(kind, self._operation, errors, data, response)
 
     def _handle_errors(self, errors: Any, data: Any, response: httpx.Response) -> None:
         if not isinstance(errors, list):

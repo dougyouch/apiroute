@@ -57,12 +57,23 @@ Recognition checks `extensions.code` (`PERSISTED_QUERY_NOT_FOUND`, `PERSISTED_QU
 
 `--persisted-queries` sets `GraphQLOperationSpec.persisted = True` on every operation, and `DictClientEmitter` writes `persisted=True,` in the decorator. The document in the generated file is the one that's hashed, so generated clients and their servers agree.
 
+### 6. Replies are classified where the context is known, and logged quietly
+
+Only the hash-only variant's decoder (`GraphQLDecoder.for_persisted_replies()`) recognizes protocol replies, and it raises them as `PersistedQueryReply`, a `GraphQLError` subclass with a `kind`:
+- **"not_found"** for `PersistedQueryNotFound`;
+- **"not_supported"** for `PersistedQueryNotSupported`, **or any request error.** That's a response with errors and no `data` key, so nothing was executed.
+
+`GraphQLPersistedCall` catches only `PersistedQueryReply`. Every other error, and every error from the register or full requests, propagates as a plain `GraphQLError`.
+
+*Found testing against GitHub:* a server that doesn't implement APQ needn't answer `PersistedQueryNotSupported`. GitHub answers a hash-only request with *"A query attribute must be specified and must be a string."* and no `data`, and the first version raised that on every call. Treating any request error on a hash-only request as "not supported" covers such servers. If the full document then fails too, that real error raises loudly. The cost of a false positive (a server with APQ whose cached query fails validation) is only that this client sends full documents from then on, and the outcome is the same error.
+
+`RetryPolicy` logs an exception at the level its `log_level` attribute names, else WARNING. `PersistedQueryReply.log_level` is DEBUG, so protocol replies stay in the logs without reading as failures. That's the follow-up this PR originally deferred.
+
 ## Risks / Trade-offs
 
 - **[A miss costs a second request]** → That's inherent to APQ, and it's once per document per server cache lifetime.
 - **[`on_request` hooks and mocks see two requests on a miss]** → This is documented. The body shows which is which (`query` absent or present), and `RequestSpec.operation` is the same for both.
 - **[A server that answers the hash-only request with some other error]** → It propagates as a normal `GraphQLError`. apiroute doesn't guess.
-- **[Protocol replies are logged as failed attempts]** The retry policy logs every attempt that raises, so a miss or an "unsupported" reply logs a WARNING such as `Viewer failed on attempt 1: GraphQLError('Viewer: PersistedQueryNotFound')`. It's accurate but noisy (once per document per server cache, or once per client for unsupported) → Accepted for now. Quieting it needs the decoder to report APQ replies without raising, which a follow-up can do.
 - **[Retries]** → Each variant retries per the client's policy. A mutation's hash-only attempt is still non-idempotent, which is fine: a `PersistedQueryNotFound` means it didn't run.
 
 ## Tested against Apollo Server
@@ -72,6 +83,10 @@ With Apollo Server 4.11 running locally (APQ on by default, and a second instanc
 - A persisted, paginated route registers on the first page and sends every later page by hash.
 - Against the server without APQ, one hash attempt is followed by full documents for that client; a new client tries once.
 - `fetch-schema` of the server, then `generate graphql --persisted-queries` with an `@paginate` operation, gave a typed client that paged through every item the same way.
+
+## Tested against GitHub
+
+GitHub doesn't support APQ. With `persisted=True`, each route on each client makes one hash-only request, which GitHub refuses with a request error, then sends full documents, including every page of a paginated route (120 cpython issues). The only log lines are DEBUG.
 
 ## Open Questions
 

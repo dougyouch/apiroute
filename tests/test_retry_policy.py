@@ -39,3 +39,17 @@ def test_logs_retried_and_final_failures(caplog):
     logged.delay_before_retry(OSError("last"), 2)
     assert "attempt 1 of 2: OSError('first')" in caplog.text
     assert "r failed on attempt 2: OSError('last')" in caplog.text
+
+
+def test_an_exception_may_declare_its_log_level(caplog):
+    import logging
+
+    class Expected(Exception):
+        log_level = logging.DEBUG
+
+    policy = RetryPolicy(Retries(attempts=2, sleep=0), lambda error, attempt: True, "route")
+    with caplog.at_level(logging.DEBUG, logger="apiroute.retry_policy"):
+        policy.delay_before_retry(Expected(), 1)
+        policy.delay_before_retry(Expected(), 2)
+        policy.delay_before_retry(ValueError(), 2)
+    assert [r.levelname for r in caplog.records] == ["DEBUG", "DEBUG", "WARNING"]

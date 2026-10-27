@@ -191,3 +191,45 @@ def test_hooks_see_each_request(mock):
     mock.respond(NOT_FOUND, DATA)
     Api(transport=mock).viewer()
     assert seen == [("Viewer", False), ("Viewer", True)]
+
+
+GITHUB_REPLY = httpx.Response(
+    200, json={"errors": [{"message": "A query attribute must be specified and must be a string."}]}
+)
+
+
+def test_a_server_that_doesnt_know_the_protocol_gets_full_documents(hub, mock):
+    # GitHub's answer to a hash-only request: a request error, no data, no APQ code
+    mock.respond(GITHUB_REPLY, DATA, DATA)
+    assert hub.viewer() == "octo"
+    assert hub.viewer() == "octo"
+    assert ["query" in body for body in bodies(mock)] == [False, True, True]
+    assert ["extensions" in body for body in bodies(mock)] == [True, False, False]
+
+
+def test_a_real_error_on_the_full_document_still_raises(hub, mock):
+    mock.respond(
+        GITHUB_REPLY, httpx.Response(200, json={"errors": [{"message": "Bad credentials"}]})
+    )
+    with pytest.raises(GraphQLError, match="Bad credentials") as caught:
+        hub.viewer()
+    assert type(caught.value) is GraphQLError  # not the protocol reply
+
+
+def test_protocol_replies_arent_logged_as_failures(hub, mock, caplog):
+    import logging
+
+    mock.respond(NOT_FOUND, DATA)
+    with caplog.at_level(logging.DEBUG, logger="apiroute"):
+        hub.viewer()
+    assert [r.levelname for r in caplog.records if "failed on attempt" in r.message] == ["DEBUG"]
+    assert "PersistedQueryNotFound" in caplog.text
+
+
+def test_real_errors_are_still_warnings(hub, mock, caplog):
+    import logging
+
+    mock.respond(graphql_response(errors=[{"message": "Cannot query field"}]))
+    with caplog.at_level(logging.DEBUG, logger="apiroute"), pytest.raises(GraphQLError):
+        hub.viewer()
+    assert [r.levelname for r in caplog.records if "failed on attempt" in r.message] == ["WARNING"]
