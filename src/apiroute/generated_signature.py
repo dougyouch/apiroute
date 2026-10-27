@@ -2,6 +2,7 @@ import inspect
 from collections.abc import Callable
 from typing import Any
 
+from apiroute.class_declaration import declares
 from apiroute.from_client import FROM_CLIENT
 from apiroute.http_method import infer_http_method, normalize_http_method
 from apiroute.path_template import PathTemplate
@@ -54,14 +55,9 @@ class GeneratedSignature:
         return list(dict.fromkeys(names))
 
     def _parameter(self, name: str) -> inspect.Parameter:
-        if self._declared_on_class(name):
+        if declares(self._owner, name):
             return inspect.Parameter(name, _KEYWORD_ONLY, default=FROM_CLIENT)
         return inspect.Parameter(name, _KEYWORD_ONLY)
-
-    def _declared_on_class(self, name: str) -> bool:
-        return hasattr(self._owner, name) or any(
-            name in _annotations(base) for base in self._owner.__mro__
-        )
 
     def _takes_body(self) -> bool:
         if self._spec.body is not None:
@@ -83,11 +79,3 @@ class GeneratedSignature:
 
     def _label(self) -> str:
         return f"{self._owner.__qualname__}.{self._name}"
-
-
-def _annotations(cls: type) -> dict[str, Any]:
-    """A class's own annotations; ones that can't be evaluated still count by name."""
-    try:
-        return inspect.get_annotations(cls)
-    except Exception:
-        return vars(cls).get("__annotations__", {})

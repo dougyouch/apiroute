@@ -1,5 +1,5 @@
 import time
-from collections.abc import Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import replace
 from typing import Any
 
@@ -16,6 +16,7 @@ from apiroute.retry_policy import RetryPolicy
 from apiroute.retry_runner import RetryRunner
 from apiroute.route_definition import RouteDefinition
 from apiroute.stream_reader import StreamReader
+from apiroute.unsent_retry_filter import UnsentRetryFilter
 
 
 class RouteExecutor:
@@ -68,8 +69,13 @@ class RouteExecutor:
     def _prepare(self, values: Mapping[str, Any]) -> tuple[RequestSpec, RetryPolicy]:
         config = self._router._request_config()
         spec = RequestBuilder(config, self._root, self._options).build(self._definition, values)
-        policy = RetryPolicy(self._retries(config), self._root.should_retry, self._definition.name)
+        policy = RetryPolicy(self._retries(config), self._should_retry(), self._definition.name)
         return spec, policy
+
+    def _should_retry(self) -> Callable[[Exception, int], bool]:
+        if self._definition.idempotent:
+            return self._root.should_retry
+        return UnsentRetryFilter(self._root.should_retry)
 
     def _read(self, response: httpx.Response) -> Any:
         return self._response_reader().read(response)

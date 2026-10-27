@@ -1,6 +1,36 @@
 # apiroute
 
-Build API clients declaratively: one `@route` per endpoint, safe defaults, [httpx](https://www.python-httpx.org/) underneath. A Python port of the Ruby gem [client-api-builder](https://github.com/dougyouch/client-api-builder).
+Build API clients declaratively: one `@route` per endpoint, safe defaults, [httpx](https://www.python-httpx.org/) underneath. REST, GraphQL and SOAP fit in one client class and share its auth, retries, hooks and test mocks. A Python port of the Ruby gem [client-api-builder](https://github.com/dougyouch/client-api-builder).
+
+- **One decorator per call.** `@route("/users/{id}")` for REST and `graphql_route("query ...")` for GraphQL. Signatures are checked when the class is created, so a typo fails at import time, not in production.
+- **GraphQL built for hand-written queries.** You write the query; apiroute fills its variables from the method's arguments, unwraps `data`, raises `GraphQLError` with any partial data, and won't re-send a mutation that may already have run.
+- **Retries you can trust.** Exponential backoff with jitter and `Retry-After` support, and a `should_retry` hook for anything else.
+- **Typed results.** A return annotation turns JSON into a pydantic model or a dataclass.
+- **Sync and async from the same class.** `client.get_user(...)` or `await client.aio.get_user(...)`.
+- **Testing included.** `MockTransport` answers requests by operation name, path or predicate, `block_network()` stops real calls, and a pytest plugin provides both as fixtures.
+- **Code generation.** `apiroute generate openapi|wsdl` turns OpenAPI/Swagger specs and WSDLs into clients, with models.
+- **Small footprint.** The only required dependency is httpx; pydantic, SOAP, GraphQL checks and codegen are optional extras.
+
+```python
+from apiroute import Client, graphql_route, route
+
+
+class GitHub(Client):
+    base_url = "https://api.github.com"
+
+    @route("/users/{username}")  # REST
+    def get_user(self, username: str) -> dict: ...
+
+    @graphql_route(
+        """
+        query Repo($owner: String!, $repoName: String!) {
+          repository(owner: $owner, name: $repoName) { stargazerCount }
+        }
+    """,
+        data="repository.stargazerCount",
+    )  # GraphQL, on the same client
+    def stars(self, owner: str, repo_name: str) -> int: ...
+```
 
 ## Installation
 
@@ -9,6 +39,7 @@ pip install apiroute            # or: uv add apiroute
 pip install apiroute[pydantic]  # to return pydantic models
 pip install apiroute[codegen]   # to generate clients from OpenAPI/Swagger specs and WSDLs
 pip install apiroute[soap]      # to run generated SOAP clients
+pip install apiroute[graphql]   # to check GraphQL documents for syntax errors when a class is created
 ```
 
 apiroute needs Python 3.10 or newer, and httpx.
@@ -217,6 +248,58 @@ retries = Retries(attempts=5, sleep=0.1, backoff=2, max_sleep=10, jitter=True)
 - Only timeouts, network errors and protocol errors are retried, unless `should_retry` says otherwise. A retried `UnexpectedResponse` with a `Retry-After` header waits that long, capped at `max_sleep`.
 - `with_options(retries=3)` changes the attempts for one call; `with_options(retries=Retries(...))` replaces the policy.
 
+## GraphQL
+
+`graphql_route` declares a GraphQL operation that you write yourself. In GraphQL the caller decides what the response contains, so apiroute leaves the selection set to you and takes care of the rest: the request envelope, variables, errors and unwrapping. GraphQL operations can sit next to REST routes in the same client, sharing its headers, retries, hooks and test helpers.
+
+```python
+from apiroute import Client, graphql_route
+
+
+class GitHub(Client):
+    base_url = "https://api.github.com"
+
+    @graphql_route(
+        """
+        query Repo($owner: String!, $repoName: String!, $first: Int) {
+          repository(owner: $owner, name: $repoName) {
+            name
+            issues(first: $first) { nodes { title } }
+          }
+        }
+    """,
+        data="repository",
+    )
+    def repo(self, owner: str, repo_name: str, first: int | None = None) -> Repository: ...
+
+    viewer = graphql_route("query Viewer { viewer { login } }", data="viewer.login")
+
+    @graphql_route(
+        "mutation Star($id: ID!) { addStar(input: {starrableId: $id}) { clientMutationId } }"
+    )
+    def star(self, id: str) -> dict: ...
+```
+
+- **The request.** A POST to `path` (`/graphql` by default, under any `namespace()` or section) with the JSON body `{"query", "operationName", "variables"}`.
+- **Variables.** Each variable is filled from the argument with the same name, else the argument with its snake_case name (`$repoName` from `repo_name`), else a client attribute. `variables={"userID": "user_id"}` maps a variable to an argument explicitly. An argument passed as `None` is left out, so the document's default for that variable applies. A required variable with nothing to fill it, or an argument that fills no variable (unless it's a `Header` or `Result`), raises `RouteDefinitionError` when the class is created.
+- **Routes without a `def`.** A bare `graphql_route(...)` gets one keyword-only parameter per variable. Required variables are required parameters; the others default to `None`.
+- **The response.** The route returns `data`, or the value at the dotted `data=` path inside it, or `None` if a step along that path is null. The result is converted by `model=` or the return annotation, as with `@route`.
+- **Errors.** A response with `errors` raises `GraphQLError`, which carries `.errors`, `.data` (anything the server resolved anyway), `.codes` (the `extensions.code` values) and `.response`. With `errors="partial"`, a response that has errors but non-null `data` returns that data and logs the errors. A 400 with a GraphQL `errors` body raises `GraphQLError`; any other status outside 2xx raises `UnexpectedResponse`.
+- **Operation names.** The operation's name is `RequestSpec.operation`, so `on_request`, `on_response` and `mock.on(operation="Repo")` can tell operations apart even though they all share one URL. `operation_name=` picks one operation from a document that has several, or names an anonymous operation. Without it, an anonymous operation is named after its method.
+- **Retries.** Queries are retried like any other route. A mutation is not retried after an error that may have happened once the server had the request: read and write timeouts or errors, and protocol errors. Errors before anything was sent, such as connection failures and pool timeouts, are still offered to `should_retry`. Pass `idempotent=True` for a mutation that is safe to repeat.
+- **Checking documents.** apiroute reads each document's operation type, name and variables itself. With `pip install apiroute[graphql]`, it also parses the document with graphql-core when the class is created, so a syntax error raises `RouteDefinitionError` at import time instead of failing on the server. Documents aren't checked against a schema.
+
+In tests, `graphql_response(data=..., errors=...)` from `apiroute.testing` builds the response, and `MockCall.graphql_variables` returns the variables that were sent:
+
+```python
+from apiroute.testing import graphql_response, mock_transport
+
+with mock_transport() as mock:
+    mock.on(operation="Viewer").respond(graphql_response(data={"viewer": {"login": "octocat"}}))
+    assert GitHub().viewer() == "octocat"
+    assert mock.last.graphql_variables == {}
+```
+
 ## Errors
 
 | Exception | Raised when | Carries |
@@ -224,10 +307,11 @@ retries = Retries(attempts=5, sleep=0.1, backoff=2, max_sleep=10, jitter=True)
 | `RouteDefinitionError` | a route is wrong (an unused parameter, a bad template value or option); raised when the class is created | the class, route and reason in its message |
 | `UnexpectedResponse` | the status isn't expected (any 2xx when `expected` is unset), or a JSON route's body isn't JSON | `.response`, `.status_code`, `.request`, `.route_name` |
 | `ResponseValidationError` | the JSON doesn't fit the route's model | `.response`, `.error`, `.route_name` |
+| `GraphQLError` | a GraphQL response has `errors` | `.errors`, `.data`, `.codes`, `.response`, `.operation` |
 | `httpx.TransportError` subclasses | the network fails, after retries run out | httpx's details |
 | `ValueError` | a class setting is invalid (a `base_url` scheme, `body_format`, `inherit`), or a streamed file path is unsafe | the reason in its message |
 
-The first three derive from `ApiRouteError`. `client.last_response` holds the most recent response for debugging; it is per client, so don't rely on it when one client is shared between threads.
+The first four derive from `ApiRouteError`. `client.last_response` holds the most recent response for debugging; it is per client, so don't rely on it when one client is shared between threads.
 
 ## Class settings
 

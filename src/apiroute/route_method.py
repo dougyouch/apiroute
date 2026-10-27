@@ -27,7 +27,12 @@ class RouteMethod:
 
     def compile(self, owner: type, name: str) -> None:
         self.defer(owner, name)
-        self._definition = RouteCompiler(owner.__qualname__, name, self._func, self._spec).compile()
+        spec = self._spec_for(owner, name)
+        self._definition = RouteCompiler(owner.__qualname__, name, self._func, spec).compile()
+
+    def _spec_for(self, owner: type, name: str) -> RouteSpec:
+        """The spec to compile; a subclass may build it once the class and name are known."""
+        return self._spec
 
     def defer(self, owner: type, name: str) -> None:
         """Remembers where the route lives, to compile it on first use."""

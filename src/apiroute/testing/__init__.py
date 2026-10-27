@@ -8,6 +8,7 @@ a scope that installs it for every client, and guards against real network calls
 """
 
 from apiroute.testing.async_mock_transport import AsyncMockTransport
+from apiroute.testing.graphql_response import graphql_response
 from apiroute.testing.mock_call import MockCall
 from apiroute.testing.mock_route import MockRoute
 from apiroute.testing.mock_transport import MockTransport
@@ -24,6 +25,7 @@ __all__ = [
     "NetworkBlocked",
     "UnmatchedRequest",
     "block_network",
+    "graphql_response",
     "mock_transport",
     "recorded_sleeps",
 ]
