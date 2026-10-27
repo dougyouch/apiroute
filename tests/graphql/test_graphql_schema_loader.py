@@ -27,6 +27,16 @@ def test_introspection_with_and_without_the_data_envelope(tmp_path):
     assert "Repository" in load_schema(holder(bare)).type_map
 
 
+def test_directive_locations_unknown_to_graphql_core_are_dropped(tmp_path):
+    data = json.loads((SCHEMAS / "github.json").read_text())
+    for directive in data["data"]["__schema"]["directives"]:
+        directive["locations"].append("FROM_A_FUTURE_SPEC")
+    future = tmp_path / "future.json"
+    future.write_text(json.dumps(data))
+    schema = load_schema(holder(future))
+    assert "FROM_A_FUTURE_SPEC" not in str(schema.get_directive("deprecated").locations)
+
+
 def test_a_schema_object_is_used_as_is():
     schema = graphql.build_schema("type Query { a: Int }")
     assert load_schema(holder(schema)) is schema

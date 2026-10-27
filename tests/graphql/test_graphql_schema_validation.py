@@ -69,7 +69,7 @@ def test_every_problem_is_reported():
 
     message = str(caught.value)
     assert "Cannot query field 'logn'" in message
-    assert "Argument 'Query.repository(name:)'" in message
+    assert "is required, but it was not provided" in message
 
 
 def test_introspection_json_and_schema_objects_work_too():

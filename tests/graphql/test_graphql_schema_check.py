@@ -20,12 +20,14 @@ def test_lists_every_problem_with_its_location():
         check_against_schema(
             'query V {\n  viewer { logn }\n  repository(owner: "a") { name }\n}', SCHEMA
         )
-    assert str(caught.value) == (
-        "the document doesn't match graphql_schema:\n"
-        "  - Cannot query field 'logn' on type 'User'. Did you mean 'login'? (line 2, column 12)\n"
-        "  - Argument 'Query.repository(name:)' of type 'String!' is required, but it was not"
-        " provided. (line 3, column 3)"
-    )
+    header, *problems = str(caught.value).split("\n  - ")
+    assert header == "the document doesn't match graphql_schema:"
+    # graphql-core's wording varies between versions; the locations don't
+    assert len(problems) == 2
+    assert problems[0].startswith("Cannot query field 'logn' on type 'User'.")
+    assert problems[0].endswith("(line 2, column 12)")
+    assert "is required, but it was not provided." in problems[1]
+    assert problems[1].endswith("(line 3, column 3)")
 
 
 def test_a_variable_of_the_wrong_type():

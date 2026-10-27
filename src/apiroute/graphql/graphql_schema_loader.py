@@ -21,7 +21,7 @@ def load_schema(holder: type) -> Any:
 
 @functools.cache
 def _load_file(path: str) -> Any:
-    from graphql import build_client_schema, build_schema
+    from graphql import DirectiveLocation, build_client_schema, build_schema
 
     try:
         text = Path(path).read_text(encoding="utf-8")
@@ -29,16 +29,24 @@ def _load_file(path: str) -> Any:
         raise ValueError(f"can't read graphql_schema {path}: {error.strerror}") from error
     try:
         if path.endswith(".json"):
-            return build_client_schema(_introspection(json.loads(text)))
+            known = {location.name for location in DirectiveLocation}
+            return build_client_schema(_introspection(json.loads(text), known))
         return build_schema(text)
     except Exception as error:
         raise ValueError(f"graphql_schema {path} isn't a valid schema: {error}") from error
 
 
-def _introspection(data: Any) -> Any:
-    """An introspection result, inside its {"data": ...} response envelope or not."""
+def _introspection(data: Any, known: set[str]) -> Any:
+    """An introspection result, inside its {"data": ...} response envelope or not, without
+    directive locations this graphql-core doesn't know: servers on a newer spec list some
+    (@deprecated on DIRECTIVE_DEFINITION) that graphql-core 3.2 refuses, and they don't
+    affect validating operations."""
     if isinstance(data, dict) and isinstance(data.get("data"), dict):
-        return data["data"]
+        data = data["data"]
+    for directive in data.get("__schema", {}).get("directives") or []:
+        directive["locations"] = [
+            location for location in directive.get("locations", []) if location in known
+        ]
     return data
 
 
