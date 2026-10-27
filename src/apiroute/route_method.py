@@ -1,7 +1,7 @@
 import functools
 import inspect
 from collections.abc import Callable
-from typing import Any
+from typing import Any, Concatenate, Generic, ParamSpec, TypeVar, overload
 
 from apiroute.from_client import FROM_CLIENT
 from apiroute.request_options import RequestOptions
@@ -9,15 +9,22 @@ from apiroute.route_compiler import RouteCompiler
 from apiroute.route_definition import RouteDefinition
 from apiroute.route_spec import RouteSpec
 
+# The decorated method's parameters (after self) and return type, so type checkers see
+# client.get_user as the method's own signature
+P = ParamSpec("P")
+R = TypeVar("R")
 
-class RouteMethod:
+
+class RouteMethod(Generic[P, R]):
     """What @route leaves on the class: binds to a client or section as a request method.
 
     The router compiles it in __init_subclass__, so a bad route fails when its class is
     created; with compile_routes = "lazy" it is compiled on first use instead.
+
+    Type checkers see it, through an instance, as the decorated method without self.
     """
 
-    def __init__(self, func: Callable, spec: RouteSpec):
+    def __init__(self, func: Callable[Concatenate[Any, P], R], spec: RouteSpec | None):
         self._func = func
         self._spec = spec
         self._definition: RouteDefinition | None = None
@@ -55,9 +62,18 @@ class RouteMethod:
     def __signature__(self) -> inspect.Signature:
         return self.definition.call_signature
 
-    def __call__(self, router: Any, *args: Any, **kwargs: Any) -> Any:
-        """Called through the class, like an unbound method: Api.get_user(client, ...)."""
-        return self.bind(router, RequestOptions())(*args, **kwargs)
+    def __call__(self, *args: Any, **kwargs: Any) -> Any:
+        """Called through the class, like an unbound method: Api.get_user(client, ...).
+        Typed loosely, so code a type checker reads as reaching a route through a class
+        (mypy, for a nested Section) checks as Any rather than failing."""
+        router, *rest = args
+        return self.bind(router, RequestOptions())(*rest, **kwargs)
+
+    @overload
+    def __get__(self, instance: None, owner: type) -> "RouteMethod[P, R]": ...
+
+    @overload
+    def __get__(self, instance: object, owner: type) -> Callable[P, R]: ...
 
     def __get__(self, instance: Any, owner: type) -> Any:
         if instance is None:

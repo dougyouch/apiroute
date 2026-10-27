@@ -4,6 +4,7 @@ from apiroute.api_route_error import ApiRouteError
 from apiroute.argument_targets import Body, Header, Query
 from apiroute.client import Client
 from apiroute.from_client import FROM_CLIENT
+from apiroute.from_response import FROM_RESPONSE
 from apiroute.graphql import GraphQLError, graphql_route
 from apiroute.lazy_attribute import lazy
 from apiroute.lazy_exports import lazy_exports
@@ -38,6 +39,7 @@ __all__ = [
     "Body",
     "Client",
     "FROM_CLIENT",
+    "FROM_RESPONSE",
     "ApiRouteError",
     "GraphQLError",
     "Header",

@@ -131,7 +131,7 @@ class SelectionModelMapper:
             self._object_model(name, name, abstract, entries, typename="")
             members.append(name)
         # pydantic's smart union picks the member whose __typename Literal matches (it validates
-        # with more fields than the fallback's plain str); union_mode isn't in pydantic 2.0
+        # with more fields than the fallback's plain str); so union_mode isn't needed
         expr = " | ".join(members)
         self._models[alias] = Model(alias, alias_of=TypeRef(expr, frozenset(members)))
         return TypeRef.model(alias)

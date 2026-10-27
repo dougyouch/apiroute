@@ -73,3 +73,45 @@ def test_only_one_result_parameter():
         class Bad(Client):
             @route("/x")
             def get_x(self, *, a: Result, b: Result): ...
+
+
+def test_from_response_marks_the_hook_parameter_by_its_default():
+    from dataclasses import dataclass
+
+    import httpx
+
+    from apiroute import FROM_RESPONSE
+    from apiroute.testing import MockTransport
+
+    @dataclass
+    class User:
+        login: str
+        id: int
+
+    class Api(Client):
+        base_url = "https://x.test"
+
+        @route("/users/{username}")
+        def get_login(self, username: str, *, data: dict = FROM_RESPONSE) -> str:
+            return data["login"]
+
+        @route("/users/{username}")
+        def get_user(self, username: str, *, user: User = FROM_RESPONSE) -> User:
+            return user
+
+    mock = MockTransport()
+    mock.respond(*[httpx.Response(200, json={"login": "octo", "id": 1})] * 2)
+    api = Api(transport=mock)
+    assert api.get_login("x") == "octo"
+    assert list(inspect.signature(api.get_login).parameters) == ["username"]
+    assert isinstance(api.get_user("x"), User)
+
+
+def test_from_response_must_be_keyword_only():
+    from apiroute import FROM_RESPONSE
+
+    with pytest.raises(RouteDefinitionError, match="must be keyword-only"):
+
+        class Api(Client):
+            @route("/x")
+            def get_x(self, data: dict = FROM_RESPONSE): ...
