@@ -163,7 +163,7 @@ Copy them from an existing client repository (ebay-apiroute, for example) and ch
      - otherwise `fix(codegen): regenerate clients with apiroute <version>` (a patch)
 
   It needs `permissions: contents: write`. If `main` is protected, give the workflow a bypass or have it open a PR instead. A GraphQL API whose introspection needs a token gets it from a repository secret, exposed to the fetch step as the environment variable `spec_headers` names.
-- **`release.yml`**, only if the user said yes to PyPI, runs release-please, then CI through `workflow_call`, then publishes with `uv publish --trusted-publishing always` in the `pypi` environment. It skips a version that's already on PyPI, and attaches the distributions to the GitHub release. Besides `push` and `workflow_dispatch`, trigger it on `workflow_run` of Build: commits pushed with `GITHUB_TOKEN` don't trigger other workflows.
+- **`release.yml`**, only if the user said yes to PyPI, releases hands-off, which is the default for client repositories. It runs release-please, then tests the release PR's branch (CI through `workflow_call` with a `ref` input), merges it with `gh pr merge --rebase`, and runs release-please again in the same job to tag it and create the GitHub release. Then it publishes with `uv publish --trusted-publishing always` in the `pypi` environment. All of this happens in one run, because a merge made with `GITHUB_TOKEN` doesn't trigger the push event that would otherwise release it. A release PR merged by hand still releases through `push`. Publishing skips a version that's already on PyPI, and attaches the distributions to the GitHub release. Besides `push` and `workflow_dispatch`, trigger it on `workflow_run` of Build: commits pushed with `GITHUB_TOKEN` don't trigger other workflows. Copy ebay-apiroute's `release.yml` and `ci.yml`.
 
 Each repository needs these GitHub and PyPI settings:
 
@@ -172,11 +172,11 @@ Each repository needs these GitHub and PyPI settings:
 - If releasing:
   - The user creates a PyPI **pending publisher**: the project name, the repository owner and name, workflow `release.yml`, environment `pypi`.
   - Before the first release, set the version (e.g. `0.1.0`) in `pyproject.toml` and `.release-please-manifest.json`.
-  - Tag `v<version>`, create its GitHub release, and run Release manually to publish. After that, release-please opens release PRs and merging them publishes.
+  - Tag `v<version>`, create its GitHub release, and run Release manually to publish. After that, releases are automatic: release-please's PRs are tested, merged and published by `release.yml`.
 
 ## 7. Maintenance
 
-- **Routine:** none. Build commits changes and release-please collects them. Review the release PR's CHANGELOG, then merge.
+- **Routine:** none. Build commits changes, and release-please's PR is tested, merged and published on its own. The tests are the gate, so keep them meaningful: config checks, auth behaviour, and one call per protocol.
 - **A spec change breaks generation:** Build fails before committing, and the last good code stays on main. Reproduce with `scripts/generate.py --fetch --only <name>`, then fix apiroute (preferred) or the auth class. Never patch `specs/` or generated files by hand.
 - **A GraphQL schema change breaks an operation:** Build fails listing each broken operation as `file:line:column`. The operations are yours: update them in `operations/<api>/` (a renamed or removed field), regenerate and commit (`feat!:` if a released method's result changed shape). Deprecation warnings in the Build log say what to move off before the API removes it.
 - **Add a GraphQL operation:** add a `.graphql` file (or a query to one), `generate.py --only <name>`, test and commit (`feat:`).
