@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.1](https://github.com/dougyouch/apiroute/compare/v2.0.0...v2.0.1) (2026-10-27)
+
+
+### Documentation
+
+* remove duplicated changelog entries and a stray user link ([b4963f6](https://github.com/dougyouch/apiroute/commit/b4963f69d31e95c476befd87d77611db892eb44d))
+
 ## [2.0.0](https://github.com/dougyouch/apiroute/compare/v1.12.0...v2.0.0) (2026-10-27)
 
 
