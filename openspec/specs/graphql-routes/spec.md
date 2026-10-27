@@ -123,7 +123,7 @@ With `errors="partial"`, a response that has both errors and non-null `data` SHA
 - **THEN** it raises `GraphQLError`
 
 ### Requirement: Mutations are not retried after the request may have reached the server
-Routes declared from a `mutation` operation SHALL be non-idempotent unless `idempotent=True` is passed. For a non-idempotent route, errors that may occur after the request was sent SHALL NOT be retried, whatever `should_retry` returns. These are read and write timeouts, read and write errors, and remote protocol errors. Errors before sending (connect errors, connect timeouts, pool timeouts) and HTTP responses SHALL still be offered to `should_retry`. Query routes and existing `@route` methods SHALL keep the current retry behavior.
+Routes declared from a `mutation` operation SHALL be non-idempotent unless `idempotent=True` is passed. For a non-idempotent route, errors that may occur after the request was sent SHALL NOT be retried, whatever `should_retry` returns. These are read and write timeouts, read and write errors, and remote protocol errors. Errors before sending (connect errors, connect timeouts, pool timeouts) and HTTP responses SHALL still be offered to `should_retry`. Query routes SHALL be idempotent, although they're sent as POST. `@route` methods SHALL follow the route-idempotency rules: idempotent by default for `GET`, `HEAD` and `OPTIONS` only.
 
 #### Scenario: Mutation read timeout
 - **WHEN** a client with `retries = Retries(attempts=3)` calls a mutation route and the transport raises `httpx.ReadTimeout`
