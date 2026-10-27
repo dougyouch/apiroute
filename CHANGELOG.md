@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.0.0](https://github.com/dougyouch/apiroute/compare/v1.12.0...v2.0.0) (2026-10-27)
+
+
+### ⚠ BREAKING CHANGES
+
+* POST, PUT, PATCH and DELETE routes, including generated OpenAPI POST operations and every SOAP operation, are no longer retried after a read timeout, write timeout, read/write error or remote protocol error. Declare idempotent=True on routes that are safe to repeat, or set idempotency_key on the client for APIs that support idempotency keys.
+
+### Features
+
+* retry only safe methods after the request may have reached the server ([68d9d8c](https://github.com/dougyouch/apiroute/commit/68d9d8c5e6ea78300d795bf56428741e76a86d1f))
+
 ## [1.12.0](https://github.com/dougyouch/apiroute/compare/v1.11.0...v1.12.0) (2026-10-27)
 
 
