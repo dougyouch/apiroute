@@ -18,6 +18,8 @@ def route(
     body_format: Any = None,
     decoder: Any = None,
     operation: str | None = None,
+    idempotent: bool | None = None,
+    idempotency_key: str | bool | None = None,
 ) -> RouteDecorator:
     """Declares an endpoint, on a def or on its own:
 
@@ -36,6 +38,12 @@ def route(
     httpx.Response, replaces JSON parsing for returns="json" (SOAP uses it to read envelopes).
     operation is the API's own name for the call, passed to hooks as RequestSpec.operation;
     it defaults to the method name.
+
+    Only GET, HEAD and OPTIONS routes are retried after the request may have reached the
+    server (a read timeout, a dropped connection); idempotent=True says repeating this route is
+    safe too, idempotent=False that it isn't. idempotency_key="Idempotency-Key" sends that
+    header with one fresh key per call, the same on every retry, which makes retrying safe for
+    APIs that honour it; False turns off the class's idempotency_key for this route.
     """
     method, path = _split(method_and_path)
     path = current_prefix() + path
@@ -53,6 +61,8 @@ def route(
         body_format=body_format,
         decoder=decoder,
         operation=operation,
+        idempotent=idempotent,
+        idempotency_key=idempotency_key,
     )
     return RouteDecorator(spec)
 

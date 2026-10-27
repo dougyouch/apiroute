@@ -246,6 +246,20 @@ retries = Retries(attempts=5, sleep=0.1, backoff=2, max_sleep=10, jitter=True)
 - `attempts` is the total number of attempts. The default is one, so nothing is retried until you configure it.
 - The sleep before retry n is `sleep * backoff ** (n - 1)`, capped at `max_sleep`. `jitter=True` sleeps a random time up to that; a number from 0 to 1 shortens it by up to that fraction.
 - Only timeouts, network errors and protocol errors are retried, unless `should_retry` says otherwise. A retried `UnexpectedResponse` with a `Retry-After` header waits that long, capped at `max_sleep`.
+- **Only safe methods are retried once the server may have the request.** A read timeout or a connection dropped mid-response may mean the server already did the work, so those errors are retried only for `GET`, `HEAD` and `OPTIONS` routes. `POST`, `PUT`, `PATCH` and `DELETE` routes aren't retried after them, so a charge or an order can't happen twice. Errors before anything was sent (connection refused, connect and pool timeouts), and statuses you retry in `should_retry` (429, 503), are retried for every route.
+- **Generated clients follow the same rule.** OpenAPI `POST` operations and every SOAP operation (SOAP is always `POST`) aren't retried after a read timeout. A hand-written base class (`--base-class`) can set `idempotency_key`, or override `should_retry` for statuses.
+- **`idempotent=True`** on a route says repeating it is safe (a `POST` search, a `PUT` that replaces), and **`idempotent=False`** says a `GET` isn't.
+- **Idempotency keys** make retrying a `POST` safe on APIs that support them (Stripe, Adyen, PayPal, Square). `route(..., idempotency_key="Idempotency-Key")`, or `idempotency_key = "Idempotency-Key"` on the client (for every non-idempotent route, sections included), sends that header with a new UUID for each call, the same on every retry of it, and such routes are retried normally. `idempotency_key=False` on a route turns the client's off, and a key you pass in `with_options(headers=...)` is used as is.
+
+  ```python
+  class Stripe(Client):
+      base_url = "https://api.stripe.com/v1"
+      retries = Retries.exponential(attempts=4)
+      idempotency_key = "Idempotency-Key"
+
+      @route("POST", "/charges", body_format="form")
+      def create_charge(self, body: dict) -> dict: ...  # retried safely: one key per call
+  ```
 - `with_options(retries=3)` changes the attempts for one call; `with_options(retries=Retries(...))` replaces the policy.
 
 ## GraphQL
@@ -286,7 +300,7 @@ class GitHub(Client):
 - **The response.** The route returns `data`, or the value at the dotted `data=` path inside it, or `None` if a step along that path is null. The result is converted by `model=` or the return annotation, as with `@route`.
 - **Errors.** A response with `errors` raises `GraphQLError`, which carries `.errors`, `.data` (anything the server resolved anyway), `.codes` (each error's `extensions.code`, or its top-level `type`, where GitHub puts `NOT_FOUND`) and `.response`. With `errors="partial"`, a response that has errors but non-null `data` returns that data and logs the errors. A 400 with a GraphQL `errors` body raises `GraphQLError`; any other status outside 2xx raises `UnexpectedResponse`.
 - **Operation names.** The operation's name is `RequestSpec.operation`, so `on_request`, `on_response` and `mock.on(operation="Repo")` can tell operations apart even though they all share one URL. `operation_name=` picks one operation from a document that has several, or names an anonymous operation. Without it, an anonymous operation is named after its method.
-- **Retries.** Queries are retried like any other route. A mutation is not retried after an error that may have happened once the server had the request: read and write timeouts or errors, and protocol errors. Errors before anything was sent, such as connection failures and pool timeouts, are still offered to `should_retry`. Pass `idempotent=True` for a mutation that is safe to repeat.
+- **Retries.** Queries are idempotent, though they're sent as POST, so they're retried like a `GET`. A mutation is not retried after an error that may have happened once the server had the request: read and write timeouts or errors, and protocol errors. Errors before anything was sent, such as connection failures and pool timeouts, are still offered to `should_retry`. Pass `idempotent=True` for a mutation that is safe to repeat.
 - **Checking documents.** apiroute reads each document's operation type, name and variables itself. With `pip install apiroute[graphql]`, it also parses the document with graphql-core when the class is created, so a syntax error raises `RouteDefinitionError` at import time instead of failing on the server. To check documents against the API's schema as well, see below.
 
 ### Pagination
