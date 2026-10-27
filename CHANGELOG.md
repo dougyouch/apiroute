@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.10.0](https://github.com/dougyouch/apiroute/compare/v1.9.0...v1.10.0) (2026-10-27)
+
+
+### Features
+
+* iterate GraphQL connections across pages (paginate= and [@paginate](https://github.com/paginate)) ([e1f991d](https://github.com/dougyouch/apiroute/commit/e1f991de303ca581bef7ccc7fedb3bff025d75b6))
+* iterate GraphQL connections across pages (paginate= and [@paginate](https://github.com/paginate)) ([b868545](https://github.com/dougyouch/apiroute/commit/b8685459568732ff453ea64606e6e63da3b9c553))
+
 ## [1.9.0](https://github.com/dougyouch/apiroute/compare/v1.8.0...v1.9.0) (2026-10-27)
 
 
