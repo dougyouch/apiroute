@@ -43,11 +43,15 @@ class ModelsIndexEmitter:
                 for path, names in self._grouped():
                     out.line(f"from {path} import {import_names(names)}")
         out.line()
-        out.line("__all__ = [")
-        with out.indented():
-            for name in self._names:
-                out.line(f"{py_str(name)},")
-        out.line("]")
+        if not self._names:
+            # a level without models: mypy can't infer an empty list's type
+            out.line("__all__: list[str] = []")
+        else:
+            out.line("__all__ = [")
+            with out.indented():
+                for name in self._names:
+                    out.line(f"{py_str(name)},")
+            out.line("]")
         out.line()
         out.line("__getattr__, __dir__ = lazy_exports(")
         with out.indented():

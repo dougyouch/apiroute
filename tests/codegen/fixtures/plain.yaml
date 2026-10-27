@@ -1,0 +1,17 @@
+openapi: 3.0.1
+info:
+  title: Plain
+  version: "1"
+servers:
+  - url: https://plain.test
+paths:
+  /ping:
+    get:
+      operationId: ping
+      responses:
+        "200":
+          description: Plain text, no models
+          content:
+            text/plain:
+              schema:
+                type: string

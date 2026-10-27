@@ -48,6 +48,8 @@ def checked(tmp_path_factory) -> dict[str, list[tuple[int, str]]]:
     work = tmp_path_factory.mktemp("typing")
     definition = OpenApiReader(str(FIXTURES / "shop.yaml"), "ShopApi").read()
     PackageEmitter(definition, with_models=True).write(work / "shop")
+    plain = OpenApiReader(str(FIXTURES / "plain.yaml"), "PlainApi").read()  # a level without models
+    PackageEmitter(plain, with_models=True).write(work / "plain")
     (work / "caller.py").write_text(
         "from typing import Any\n\n"
         "from typing_extensions import assert_type\n\n"
@@ -60,9 +62,8 @@ def checked(tmp_path_factory) -> dict[str, list[tuple[int, str]]]:
         "api.pets.get_pet('1')\n"
         "api.pets.models.list_pets()\n"
     )
-    return mypy(
-        HERE / "well_typed.py", HERE / "badly_typed.py", work / "caller.py", work / "shop", cwd=work
-    )
+    samples = [HERE / "well_typed.py", HERE / "badly_typed.py", work / "caller.py"]
+    return mypy(*samples, work / "shop", work / "plain", cwd=work)
 
 
 def test_well_typed_code_passes(checked):
