@@ -59,6 +59,7 @@ graphql = [
 ]
 codegen = [
     "defusedxml>=0.7",
+    "graphql-core>=3.2",
     "pydantic>=2",
     "pyyaml>=6",
 ]

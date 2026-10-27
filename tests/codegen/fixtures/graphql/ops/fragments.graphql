@@ -1,0 +1,10 @@
+fragment UserFields on User {
+  id
+  login
+}
+
+fragment RepoFields on Repository {
+  name
+  stargazerCount
+  visibility
+}

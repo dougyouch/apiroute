@@ -1,4 +1,5 @@
 import argparse
+import json
 import sys
 from pathlib import Path
 
@@ -12,10 +13,18 @@ from apiroute.codegen.source_formatter import SourceFormatter
 
 def main(argv: list[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
+    if arguments.command == "fetch-schema":
+        return _fetch_schema(arguments)
+    return _generate(arguments)
+
+
+def _generate(arguments: argparse.Namespace) -> int:
     out_dir = Path(arguments.output)
     client_name = arguments.client_name or f"{pascal_case(out_dir.name)}Api"
     try:
-        definition = _reader(arguments.format, arguments.spec, client_name).read()
+        definition = _reader(arguments, client_name).read()
+        for warning in definition.warnings:
+            print(f"apiroute: warning: {warning}", file=sys.stderr)
         definition.base_class = arguments.base_class
         if arguments.base_url is not None:
             validate_base_url(arguments.base_url)
@@ -38,6 +47,32 @@ def main(argv: list[str] | None = None) -> int:
     return 0
 
 
+def _fetch_schema(arguments: argparse.Namespace) -> int:
+    from apiroute.codegen.graphql.schema_fetcher import SchemaFetcher
+
+    out = Path(arguments.output)
+    try:
+        _require_graphql_core()
+        data = SchemaFetcher().introspect(arguments.endpoint, _headers(arguments.header))
+        out.write_text(_schema_text(data, as_json=out.suffix == ".json"))
+    except (OSError, ValueError, RuntimeError, httpx.HTTPError) as error:
+        print(f"apiroute: {type(error).__name__}: {error}", file=sys.stderr)
+        return 1
+    print(f"Wrote the schema of {arguments.endpoint} to {out}")
+    return 0
+
+
+def _schema_text(data: dict, as_json: bool) -> str:
+    """The introspection result as indented JSON, or the schema it describes as SDL."""
+    if as_json:
+        return json.dumps({"data": data}, indent=2, ensure_ascii=False) + "\n"
+    from graphql import print_schema
+
+    from apiroute.graphql.graphql_schema_loader import schema_from_introspection
+
+    return print_schema(schema_from_introspection(data)) + "\n"
+
+
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(prog="apiroute", description="apiroute client tools")
     commands = parser.add_subparsers(dest="command", required=True)
@@ -46,8 +81,14 @@ def _parser() -> argparse.ArgumentParser:
         help="generate a client package from an API description",
         description="Generate a client package: dict routes always, pydantic models with --models.",
     )
-    generate.add_argument("format", choices=["openapi", "wsdl"], help="openapi covers Swagger 2.0")
-    generate.add_argument("spec", help="a file path or http(s) URL")
+    generate.add_argument(
+        "format", choices=["openapi", "wsdl", "graphql"], help="openapi covers Swagger 2.0"
+    )
+    generate.add_argument(
+        "spec",
+        help="a file path or http(s) URL; for graphql, the schema: an SDL or .json introspection "
+        "file, or an endpoint to introspect",
+    )
     generate.add_argument("-o", "--output", required=True, help="the package directory to write")
     generate.add_argument("--client-name", help="the root client class (default: <Output>Api)")
     generate.add_argument(
@@ -72,17 +113,109 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="don't run `ruff format` on the output, even when ruff is installed",
     )
+    graphql = generate.add_argument_group("graphql")
+    graphql.add_argument(
+        "--operations",
+        metavar="DIR",
+        help="the .graphql operation files; each subdirectory becomes a section",
+    )
+    graphql.add_argument(
+        "--endpoint",
+        metavar="URL",
+        help="the GraphQL endpoint (e.g. https://api.github.com/graphql): the root client's "
+        "base_url and the routes' path",
+    )
+    graphql.add_argument(
+        "--scalar",
+        action="append",
+        default=[],
+        metavar="NAME=MODULE:TYPE",
+        help="the Python type of a custom scalar in the models, e.g. DateTime=datetime:datetime "
+        "(default: Any); repeatable",
+    )
+    _add_header_option(graphql, "for introspecting a schema endpoint")
+    fetch = commands.add_parser(
+        "fetch-schema",
+        help="save a GraphQL endpoint's schema by introspection",
+        description="Introspect a GraphQL endpoint and write its schema: SDL, or the "
+        "introspection JSON when the output ends in .json.",
+    )
+    fetch.add_argument("endpoint", help="the GraphQL endpoint URL")
+    fetch.add_argument("-o", "--output", required=True, help="the file to write")
+    _add_header_option(fetch, "sent with the introspection query")
     return parser
 
 
-def _reader(format_name: str, spec: str, client_name: str):
-    if format_name == "openapi":
+def _add_header_option(group, purpose: str) -> None:
+    group.add_argument(
+        "-H",
+        "--header",
+        action="append",
+        default=[],
+        metavar="'NAME: VALUE'",
+        help=f"a request header {purpose}, e.g. 'Authorization: Bearer $TOKEN'; repeatable",
+    )
+
+
+def _reader(arguments: argparse.Namespace, client_name: str):
+    if arguments.format == "graphql":
+        return _graphql_reader(arguments, client_name)
+    if arguments.operations is not None:
+        raise ValueError("--operations only applies to graphql")
+    if arguments.format == "openapi":
         from apiroute.codegen.openapi.openapi_reader import OpenApiReader
 
-        return OpenApiReader(spec, client_name)
+        return OpenApiReader(arguments.spec, client_name)
     from apiroute.codegen.wsdl.wsdl_reader import WsdlReader
 
-    return WsdlReader(spec, client_name)
+    return WsdlReader(arguments.spec, client_name)
+
+
+def _graphql_reader(arguments: argparse.Namespace, client_name: str):
+    from apiroute.codegen.graphql.graphql_reader import GraphQLReader
+
+    if arguments.operations is None:
+        raise ValueError("generate graphql needs --operations DIR")
+    if arguments.base_url is not None:
+        raise ValueError("generate graphql takes --endpoint, not --base-url")
+    return GraphQLReader(
+        arguments.spec,
+        arguments.operations,
+        client_name,
+        endpoint=arguments.endpoint,
+        headers=_headers(arguments.header),
+        scalars=_scalars(arguments.scalar),
+    )
+
+
+def _headers(values: list[str]) -> dict[str, str]:
+    headers = {}
+    for value in values:
+        name, separator, content = value.partition(":")
+        if not separator or not name.strip():
+            raise ValueError(f"--header takes 'Name: value', not {value!r}")
+        headers[name.strip()] = content.strip()
+    return headers
+
+
+def _scalars(values: list[str]) -> dict[str, tuple[str, str]]:
+    scalars = {}
+    for value in values:
+        name, _, target = value.partition("=")
+        module, _, attribute = target.partition(":")
+        if not (name and module and attribute.isidentifier()):
+            raise ValueError(f"--scalar takes NAME=MODULE:TYPE, not {value!r}")
+        scalars[name] = (module, attribute)
+    return scalars
+
+
+def _require_graphql_core() -> None:
+    try:
+        import graphql  # noqa: F401
+    except ImportError as error:
+        raise RuntimeError(
+            "fetch-schema needs graphql-core: pip install apiroute[codegen]"
+        ) from error
 
 
 if __name__ == "__main__":

@@ -1,0 +1,18 @@
+# A repository and its owner.
+query Repository($owner: String!, $repoName: String!) {
+  repository(owner: $owner, name: $repoName) {
+    ...RepoFields
+    description
+    topics
+    languages
+    owner {
+      login
+      ... on User {
+        name
+      }
+    }
+    author: owner {
+      login
+    }
+  }
+}

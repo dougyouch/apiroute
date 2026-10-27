@@ -1,13 +1,13 @@
 ---
 name: apiroute-client
-description: Create, set up and maintain a GitHub repository that publishes apiroute-generated Python clients for an API described by OpenAPI/Swagger specs or WSDLs. Covers gathering the specs and documentation links, the repository layout, the apis.yaml generation config, hand-written auth base classes, the README, CI/Build/Release workflows (the Build workflow regenerates and commits changes), PyPI publishing (only if the user wants it), and ongoing maintenance.
+description: Create, set up and maintain a GitHub repository that publishes apiroute-generated Python clients for an API described by OpenAPI/Swagger specs, WSDLs or a GraphQL schema (with hand-written operations). Covers gathering the specs and documentation links, the repository layout, the apis.yaml generation config, hand-written auth base classes, the README, CI/Build/Release workflows (the Build workflow regenerates and commits changes), PyPI publishing (only if the user wants it), and ongoing maintenance.
 ---
 
 # apiroute client repositories
 
 Use this skill when asked to create a client repository for an API ("make a <api>-apiroute repo", e.g. `stripe-apiroute`), or to maintain one: adding or removing an API, a spec change that broke generation, upgrading apiroute, or setting up releases.
 
-A client repository holds generated code that is never edited by hand. It is the output of [apiroute](https://github.com/dougyouch/apiroute)'s generator (`apiroute generate openapi|wsdl`), applied to specs listed in one config file, and refreshed by a scheduled workflow. A worked example is **[ebay-apiroute](https://github.com/dougyouch/ebay-apiroute)**; the examples below use it, but nothing here is specific to eBay. Copy its files and adapt them rather than writing new ones; the sections below say what to change.
+A client repository holds generated code that is never edited by hand. It is the output of [apiroute](https://github.com/dougyouch/apiroute)'s generator (`apiroute generate openapi|wsdl|graphql`), applied to specs listed in one config file, and refreshed by a scheduled workflow. The one exception is GraphQL: its `.graphql` operation files are hand-written inputs, kept in `operations/` (see below). A worked example is **[ebay-apiroute](https://github.com/dougyouch/ebay-apiroute)**; the examples below use it, but nothing here is specific to eBay. Copy its files and adapt them rather than writing new ones; the sections below say what to change.
 
 ## 1. Gather before creating anything
 
@@ -22,20 +22,23 @@ Ask the user (an AskUserQuestion-style prompt with choices works well), and conf
 3. **Will it be released to PyPI?** Always ask; never assume. If yes, the repo gets `release.yml` and the user must create a PyPI pending publisher (step 6). If no, skip `release.yml`, and the README says to install from GitHub (`pip install git+https://github.com/<owner>/<repo>`).
 4. **Public or private.** Releasing to PyPI implies public.
 5. **Auth model:** OAuth bearer tokens, API keys, Basic auth, request signing, SOAP header credentials, or extra per-call parameters. This decides the auth base class (step 4).
+6. **For a GraphQL API, which operations.** A GraphQL schema doesn't say what to fetch, so the repository holds the queries and mutations to generate. Ask what the user needs (or start from the API's documented examples), and write them as `.graphql` files. Also ask whether introspecting the schema needs a token, and the name of the environment variable that holds it.
 
 Then find each API's machine-readable description and its documentation page:
 
 - **Download every spec and check its content, not the HTTP status.** Some sites (eBay's, for example) answer unknown URLs with a normal 200 page. A spec must parse as JSON/YAML with an `openapi` or `swagger` key, or as XML with `definitions` (WSDL).
+- **For GraphQL, introspect the endpoint** with `apiroute fetch-schema <endpoint> -o /tmp/x.graphql -H "Authorization: Bearer $TOKEN"`. Some APIs also publish the schema as a file (GitHub's `schema.docs.graphql`), which works without a token.
 - **Treat documentation links the same way.** Some sites serve an error page to `curl` but the real page to browsers. A page's `<title>` that says "Error" or "Not Found" means "try another URL or a web search", not "it doesn't exist". Every API in the README table needs a working documentation link.
 - **Probe URL patterns** when a site publishes many specs (eBay, as an example: `/api-docs/master/<group>/<api>/openapi/3/<group>_<api>_<version>_oas3.json`), but keep only the ones whose content validates.
-- **Generate each spec into a scratch directory** before committing to it: `apiroute generate openapi <url> -o /tmp/x --models`. Note any spec the generator can't handle, and either fix apiroute or leave that API out, telling the user which.
+- **Generate each spec into a scratch directory** before committing to it: `apiroute generate openapi <url> -o /tmp/x --models`, or for GraphQL `apiroute generate graphql /tmp/x.graphql --operations <dir> -o /tmp/x --models`, which reports every operation that doesn't match the schema as `file:line:column`. Note any spec the generator can't handle, and either fix apiroute or leave that API out, telling the user which.
 
 ## 2. Repository layout
 
 ```text
 <repo>/
   apis.yaml                     the source of truth: one entry per API (hand-written)
-  specs/                        committed copies of the specs (written by --fetch)
+  specs/                        committed copies of the specs (written by --fetch; SDL for GraphQL)
+  operations/<api>/             GraphQL operations, one folder per API (hand-written)
   scripts/generate.py           fetch specs, run apiroute generate, write the README table
   src/<package>/
     __init__.py                 package docstring (hand-written)
@@ -64,12 +67,26 @@ apis:
     client: SellInventoryApi
     base_class: ebay_apiroute.auth:EbayAuth   # optional; owns auth
     models: true                    # optional, default true: the typed .models layer
+  - name: github                    # a GraphQL API
+    title: GitHub GraphQL API
+    format: graphql
+    spec: https://api.github.com/graphql      # introspected by --fetch into specs/github.graphql
+    spec_headers:                   # optional, for introspection; values name environment variables
+      Authorization: "Bearer ${GITHUB_TOKEN}"
+    operations: operations/github   # hand-written .graphql files; subfolders become sections
+    endpoint: https://api.github.com/graphql  # --endpoint: base_url and path
+    scalars:                        # optional --scalar mappings
+      DateTime: datetime:datetime
+    docs: https://docs.github.com/en/graphql
+    module: github
+    client: GitHubApi
+    base_class: github_apiroute.auth:GitHubAuth
 ```
 
 `scripts/generate.py`: copy an existing one, such as [ebay-apiroute's](https://github.com/dougyouch/ebay-apiroute/blob/main/scripts/generate.py). It does the following:
 
-- `--fetch` downloads each spec, validates it, and re-indents JSON (keeping key order) so diffs stay readable.
-- It runs `apiroute generate <format> specs/<name> -o src/<package>/<module> --client-name ... --models --base-class ...` for each API.
+- `--fetch` downloads each spec, validates it, and re-indents JSON (keeping key order) so diffs stay readable. For `format: graphql` it runs `apiroute fetch-schema <spec> -o specs/<name>.graphql`, expanding `${VAR}` in `spec_headers` from the environment and passing each as `-H`. Never write a token to a file.
+- It runs `apiroute generate <format> specs/<name> -o src/<package>/<module> --client-name ... --models --base-class ...` for each API, adding `--operations`, `--endpoint` and `--scalar` for GraphQL.
 - It writes the group packages' `__init__.py`, marked "Generated by scripts/generate.py".
 - It rewrites the README table between `<!-- apis:start -->` and `<!-- apis:end -->`.
 - `--only NAME` limits the run to the named APIs.
@@ -77,7 +94,7 @@ apis:
 ebay-apiroute's script also has an eBay-specific `_write_trading_version`. Drop it, or adapt it if your auth class must read a value from a spec.
 
 `pyproject.toml`:
-- Depend on `apiroute>=<current>` (add `apiroute[soap]` when any API is a WSDL) and `pydantic>=2`. Put `apiroute[codegen]`, `pytest` and `ruff` in the `dev` dependency group.
+- Depend on `apiroute>=<current>` (add `apiroute[soap]` when any API is a WSDL; GraphQL clients need nothing extra at run time) and `pydantic>=2`. Put `apiroute[codegen]`, `pytest` and `ruff` in the `dev` dependency group.
 - Set ruff's `line-length = 100` and `extend-exclude = ["specs"]`.
 - Keep `specs/` out of the sdist.
 
@@ -143,7 +160,7 @@ Copy them from an existing client repository (ebay-apiroute, for example) and ch
      - `feat(specs): update clients from <API>'s latest specs` when `specs/` changed (a minor release)
      - otherwise `fix(codegen): regenerate clients with apiroute <version>` (a patch)
 
-  It needs `permissions: contents: write`. If `main` is protected, give the workflow a bypass or have it open a PR instead.
+  It needs `permissions: contents: write`. If `main` is protected, give the workflow a bypass or have it open a PR instead. A GraphQL API whose introspection needs a token gets it from a repository secret, exposed to the fetch step as the environment variable `spec_headers` names.
 - **`release.yml`**, only if the user said yes to PyPI, runs release-please, then CI through `workflow_call`, then publishes with `uv publish --trusted-publishing always` in the `pypi` environment. It skips a version that's already on PyPI, and attaches the distributions to the GitHub release. Besides `push` and `workflow_dispatch`, trigger it on `workflow_run` of Build: commits pushed with `GITHUB_TOKEN` don't trigger other workflows.
 
 Each repository needs these GitHub and PyPI settings:
@@ -159,6 +176,8 @@ Each repository needs these GitHub and PyPI settings:
 
 - **Routine:** none. Build commits changes and release-please collects them. Review the release PR's CHANGELOG, then merge.
 - **A spec change breaks generation:** Build fails before committing, and the last good code stays on main. Reproduce with `scripts/generate.py --fetch --only <name>`, then fix apiroute (preferred) or the auth class. Never patch `specs/` or generated files by hand.
+- **A GraphQL schema change breaks an operation:** Build fails listing each broken operation as `file:line:column`. The operations are yours: update them in `operations/<api>/` (a renamed or removed field), regenerate and commit (`feat!:` if a released method's result changed shape). Deprecation warnings in the Build log say what to move off before the API removes it.
+- **Add a GraphQL operation:** add a `.graphql` file (or a query to one), `generate.py --only <name>`, test and commit (`feat:`).
 - **Add an API:** add an `apis.yaml` entry, verifying its spec and docs as in step 1, then `generate.py --fetch --only <name>`, then test and commit (`feat:`).
 - **Remove an API:** delete its entry, its spec and its folder, then regenerate and commit (`feat!:` if it was released).
 - **apiroute adds a feature you need:** release apiroute, raise the minimum in `pyproject.toml`, `uv lock`, regenerate, commit.
