@@ -107,3 +107,41 @@ def test_codes_fall_back_to_a_top_level_type_as_github_sends():
     with pytest.raises(GraphQLError) as caught:
         GraphQLDecoder("Repo")(response(json=body))
     assert caught.value.codes == ["NOT_FOUND", "THROTTLED"]
+
+
+@pytest.mark.parametrize(
+    "body, kind",
+    [
+        ({"errors": [{"message": "PersistedQueryNotFound"}]}, "not_found"),
+        (
+            {"errors": [{"message": "x", "extensions": {"code": "PERSISTED_QUERY_NOT_FOUND"}}]},
+            "not_found",
+        ),
+        ({"errors": [{"message": "PersistedQueryNotSupported"}]}, "not_supported"),
+        ({"errors": [{"message": "A query attribute must be specified"}]}, "not_supported"),
+    ],
+)
+def test_persisted_replies_on_a_hash_only_request(body, kind):
+    from apiroute.graphql.persisted_query_reply import PersistedQueryReply
+
+    with pytest.raises(PersistedQueryReply) as caught:
+        GraphQLDecoder("A").for_persisted_replies()(response(json=body))
+    assert caught.value.kind == kind
+    assert isinstance(caught.value, GraphQLError)
+
+
+def test_an_executed_query_error_isnt_a_persisted_reply():
+    from apiroute.graphql.persisted_query_reply import PersistedQueryReply
+
+    body = {"data": None, "errors": [{"message": "Forbidden"}]}
+    with pytest.raises(GraphQLError) as caught:
+        GraphQLDecoder("A").for_persisted_replies()(response(json=body))
+    assert not isinstance(caught.value, PersistedQueryReply)
+
+
+def test_ordinary_decoders_never_raise_persisted_replies():
+    from apiroute.graphql.persisted_query_reply import PersistedQueryReply
+
+    with pytest.raises(GraphQLError) as caught:
+        GraphQLDecoder("A")(response(json={"errors": [{"message": "PersistedQueryNotFound"}]}))
+    assert not isinstance(caught.value, PersistedQueryReply)

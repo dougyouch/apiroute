@@ -13,7 +13,8 @@ class RetryPolicy:
     """Decides whether a failed attempt is retried and how long to wait first.
 
     Shared by the sync and async retry loops, which differ only in how they sleep.
-    Every failure is logged, retried or not.
+    Every failure is logged, retried or not: at WARNING, or at the level an exception declares
+    in a log_level attribute (an expected protocol reply, such as a persisted-query miss).
     """
 
     def __init__(
@@ -25,11 +26,13 @@ class RetryPolicy:
 
     def delay_before_retry(self, error: Exception, attempt: int) -> float | None:
         """Seconds to wait before the next attempt, or None when the error should be raised."""
+        level = getattr(error, "log_level", logging.WARNING)
         if not self._will_retry(error, attempt):
-            logger.warning("%s failed on attempt %d: %r", self._route_name, attempt, error)
+            logger.log(level, "%s failed on attempt %d: %r", self._route_name, attempt, error)
             return None
         delay = self._delay(error, attempt)
-        logger.warning(
+        logger.log(
+            level,
             "%s failed on attempt %d of %d: %r; retrying in %.2fs",
             self._route_name,
             attempt,

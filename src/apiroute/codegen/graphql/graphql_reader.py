@@ -39,6 +39,7 @@ class GraphQLReader:
         headers: dict[str, str] | None = None,
         scalars: dict[str, tuple[str, str]] | None = None,
         fetcher: SchemaFetcher | None = None,
+        persisted: bool = False,
     ):
         self._schema_source = schema
         self._operations_dir = operations
@@ -47,6 +48,7 @@ class GraphQLReader:
         self._headers = headers or {}
         self._scalars = scalars or {}
         self._fetcher = fetcher or SchemaFetcher()
+        self._persisted = persisted
 
     def read(self) -> ApiDefinition:
         _require_graphql_core()
@@ -144,6 +146,7 @@ class GraphQLReader:
                 operation_type=node.operation.value,
                 path=path,
                 paginate=paginate,
+                persisted=self._persisted,
             ),
         )
 

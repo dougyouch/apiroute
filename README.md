@@ -326,6 +326,20 @@ async for issue in gh.aio.open_issues("python", "cpython"):
 - **What the operation needs.** A `$after` variable, which is checked when the class is created, and `pageInfo { hasNextPage endCursor }` plus `nodes` or `edges { node }` on the connection, which is checked as pages arrive. A server that answers `hasNextPage` with no cursor, or with the same cursor again, raises `ValueError` instead of looping forever.
 - **Every page is an ordinary request**, with your headers, hooks and retries. A `GraphQLError` on a later page raises from the iteration, after the earlier items.
 
+### Persisted queries
+
+`persisted=True` sends [automatic persisted queries](https://www.apollographql.com/docs/apollo-server/performance/apq): a SHA-256 hash of the document instead of the document itself, which saves bandwidth on large operations. It works with servers that support the protocol, such as Apollo Server, GraphQL Yoga (with its plugin) and Hasura.
+
+```python
+viewer = graphql_route("query Viewer { viewer { login } }", persisted=True)
+```
+
+- **A cached query** is one request, carrying `extensions.persistedQuery` (the hash) and no `query`.
+- **On a miss** (`PersistedQueryNotFound`), the route sends the document once more along with the hash, which registers it, and returns that result. Later calls are hash-only again. You see one call and one result; `on_request` hooks and mocks see both requests.
+- **A server without APQ** gets the full document, and that client sends full documents for that route from then on. Other client instances aren't affected. That covers a server answering `PersistedQueryNotSupported`, and one that doesn't know the protocol at all and answers with a request error, as GitHub does ("A query attribute must be specified").
+- **Other GraphQL errors** raise as usual, without another request. Works with `.aio` and `paginate=`, where every page is sent by hash.
+- **Logging:** protocol replies (a miss, or not supported) are logged at DEBUG, not as WARNING failures.
+
 ### Schema validation
 
 Set `graphql_schema` and every GraphQL route is validated against the API's schema when the class is created. A misspelled field, a wrong argument, or a variable of the wrong type fails at import time instead of in production:
@@ -647,6 +661,7 @@ result.repository.stargazer_count  # RepositoryResult -> RepositoryRepository ->
 - **Methods return the whole `data`.** `gh.repos.repository(...)` returns `{"repository": ...}`, not the repository, so adding a second field to an operation never changes a method's return type.
 - **Models follow your selections.** With `--models`, each operation gets `<Operation>Result` and one model per selected object, named by its path (`RepositoryRepositoryOwner`). Aliases name fields, nullable fields are `| None`, fields under `@include`/`@skip` default to `None`, and fragments are merged into the models that use them. A selection on an interface or union with type conditions (`... on User`) becomes a union of one model per named type plus an `...Other` fallback, told apart by `__typename`, which the generator adds to the query where it's missing.
 - **Inputs, enums and scalars.** Input objects and enums your operations use become models and `Literal` aliases. `Int`, `Float`, `String`, `ID` and `Boolean` map to Python types; custom scalars are `Any` unless `--scalar Name=module:type` maps them.
+- **Persisted queries.** `--persisted-queries` generates every route with `persisted=True`, sending the hash of the document shown in the generated file.
 - **Pagination with `@paginate`.** Put it on a connection field and the generated method pages through it, as with `paginate=`. The directive is apiroute's own: it's removed before the query is validated or sent. The method returns `Iterator[dict[str, Any]]`, or `Iterator[<item model>]` from `.models`, and the generator checks for `$after`, `pageInfo { hasNextPage endCursor }` and `nodes` or `edges { node }`:
 
   ```graphql

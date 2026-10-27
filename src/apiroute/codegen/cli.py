@@ -133,6 +133,12 @@ def _parser() -> argparse.ArgumentParser:
         help="the Python type of a custom scalar in the models, e.g. DateTime=datetime:datetime "
         "(default: Any); repeatable",
     )
+    graphql.add_argument(
+        "--persisted-queries",
+        action="store_true",
+        help="send every operation as an automatic persisted query (its hash, registering "
+        "the document on a miss)",
+    )
     _add_header_option(graphql, "for introspecting a schema endpoint")
     fetch = commands.add_parser(
         "fetch-schema",
@@ -162,6 +168,8 @@ def _reader(arguments: argparse.Namespace, client_name: str):
         return _graphql_reader(arguments, client_name)
     if arguments.operations is not None:
         raise ValueError("--operations only applies to graphql")
+    if arguments.persisted_queries:
+        raise ValueError("--persisted-queries only applies to graphql")
     if arguments.format == "openapi":
         from apiroute.codegen.openapi.openapi_reader import OpenApiReader
 
@@ -185,6 +193,7 @@ def _graphql_reader(arguments: argparse.Namespace, client_name: str):
         endpoint=arguments.endpoint,
         headers=_headers(arguments.header),
         scalars=_scalars(arguments.scalar),
+        persisted=arguments.persisted_queries,
     )
 
 

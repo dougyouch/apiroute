@@ -295,3 +295,14 @@ def test_fetch_schema_failures_write_nothing(tmp_path, capsys, introspection):
     assert main(["fetch-schema", "https://x.test/graphql", "-o", str(out)]) == 1
     assert "answered HTTP 401" in capsys.readouterr().err
     assert not out.exists()
+
+
+def test_persisted_queries_flag(tmp_path):
+    assert _graphql(tmp_path / "hub", "--persisted-queries") == 0
+    assert "persisted=True," in (tmp_path / "hub" / "client.py").read_text()
+
+
+def test_persisted_queries_only_apply_to_graphql(tmp_path, capsys):
+    arguments = ["generate", "openapi", str(FIXTURES / "shop.yaml"), "-o", str(tmp_path / "x")]
+    assert main([*arguments, "--persisted-queries"]) == 1
+    assert "--persisted-queries only applies to graphql" in capsys.readouterr().err

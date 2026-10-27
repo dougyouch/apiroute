@@ -47,6 +47,7 @@ class GraphQLOperationSpec:
     # the response-key path to the connection a paginated method iterates; its Operation's
     # response is then the item type
     paginate: str | None = None
+    persisted: bool = False  # sent as automatic persisted queries
 
 
 @dataclass
