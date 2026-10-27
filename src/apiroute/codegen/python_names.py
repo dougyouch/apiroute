@@ -47,6 +47,10 @@ MODEL_RESERVED = frozenset(
     }
 )
 
+# Python 3.12's soft keywords, fixed rather than read from the running Python (3.10 and 3.11
+# don't list "type"), so the same spec gives the same code whichever Python generates it
+SOFT_KEYWORDS = frozenset({"_", "case", "match", "type"})
+
 _WORDS = re.compile(r"[A-Z]+(?=[A-Z][a-z0-9])|[A-Z]?[a-z0-9]+|[A-Z]+|[0-9]+")
 
 
@@ -69,7 +73,7 @@ def safe_identifier(name: str) -> str:
     """A name Python accepts: digits can't lead, and keywords take a trailing underscore."""
     if name[0].isdigit():
         name = f"n{name}"
-    if keyword.iskeyword(name) or keyword.issoftkeyword(name):
+    if keyword.iskeyword(name) or name in SOFT_KEYWORDS:
         name = f"{name}_"
     return name
 
