@@ -4,6 +4,19 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.12.0](https://github.com/dougyouch/apiroute/compare/v1.11.0...v1.12.0) (2026-10-27)
+
+
+### Features
+
+* send files in GraphQL variables as multipart requests ([f99ad55](https://github.com/dougyouch/apiroute/commit/f99ad555ce228d263cd0c8a416d7e9dcf9ad06ec))
+* send files in GraphQL variables as multipart requests ([aae7d90](https://github.com/dougyouch/apiroute/commit/aae7d90caa6dd3852167ed90294176a0a602b012))
+
+
+### Bug Fixes
+
+* read GraphQL Yoga's persisted-query misses, sent with HTTP 404 ([f355549](https://github.com/dougyouch/apiroute/commit/f355549a2f5d5e804d061530116454bc2b3e8eb9))
+
 ## [1.11.0](https://github.com/dougyouch/apiroute/compare/v1.10.0...v1.11.0) (2026-10-27)
 
 
