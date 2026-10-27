@@ -34,6 +34,10 @@ class RouteMethod:
         """The spec to compile; a subclass may build it once the class and name are known."""
         return self._spec
 
+    def nested_in(self, root: type) -> None:
+        """Called when a class encloses this route's section (innermost first), once that
+        class is created: a section's body runs before its enclosing class exists."""
+
     def defer(self, owner: type, name: str) -> None:
         """Remembers where the route lives, to compile it on first use."""
         self._owner = owner

@@ -14,3 +14,4 @@ class GraphQLRouteOptions(NamedTuple):
     timeout: float | None
     operation_name: str | None
     idempotent: bool | None
+    validate: bool = True

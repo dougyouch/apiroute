@@ -1,0 +1,39 @@
+type Query {
+  viewer: User!
+  repository(owner: String!, name: String!): Repository
+  node(id: ID!): Node
+}
+
+type Mutation {
+  addStar(input: AddStarInput!): AddStarPayload
+}
+
+interface Node {
+  id: ID!
+}
+
+type User implements Node {
+  id: ID!
+  login: String!
+  repositories(first: Int, after: String): RepositoryConnection!
+}
+
+type Repository implements Node {
+  id: ID!
+  name: String!
+  stargazerCount: Int!
+  owner: User!
+}
+
+type RepositoryConnection {
+  nodes: [Repository!]!
+  totalCount: Int!
+}
+
+input AddStarInput {
+  starrableId: ID!
+}
+
+type AddStarPayload {
+  clientMutationId: String
+}

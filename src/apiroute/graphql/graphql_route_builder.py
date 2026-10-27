@@ -10,6 +10,8 @@ from apiroute.graphql.graphql_decoder import GraphQLDecoder
 from apiroute.graphql.graphql_document import GraphQLDocument
 from apiroute.graphql.graphql_operation import GraphQLOperation
 from apiroute.graphql.graphql_route_options import GraphQLRouteOptions
+from apiroute.graphql.graphql_schema_check import check_against_schema
+from apiroute.graphql.graphql_schema_loader import load_schema
 from apiroute.graphql.graphql_syntax_check import check_syntax
 from apiroute.graphql.graphql_variable_binder import GraphQLVariableBinder
 from apiroute.route_spec import RouteSpec
@@ -47,6 +49,12 @@ class GraphQLRouteBuilder:
             operation=label,
             idempotent=self._idempotent(operation),
         )
+
+    def check_schema(self, holder: type) -> None:
+        """Validates the document against the graphql_schema holder declares, unless the route
+        opted out with validate=False."""
+        if self._options.validate:
+            check_against_schema(self._options.document, load_schema(holder))
 
     def stub(self, owner: type, name: str) -> Callable:
         """The function behind a route written without a def: one keyword-only parameter per
