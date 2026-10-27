@@ -250,6 +250,13 @@ retries = Retries(attempts=5, sleep=0.1, backoff=2, max_sleep=10, jitter=True)
 - Only timeouts, network errors and protocol errors are retried, unless `should_retry` says otherwise. A retried `UnexpectedResponse` with a `Retry-After` header waits that long, capped at `max_sleep`.
 - **Only safe methods are retried once the server may have the request.** A read timeout or a connection dropped mid-response may mean the server already did the work, so those errors are retried only for `GET`, `HEAD` and `OPTIONS` routes. `POST`, `PUT`, `PATCH` and `DELETE` routes aren't retried after them, so a charge or an order can't happen twice. Errors before anything was sent (connection refused, connect and pool timeouts), and statuses you retry in `should_retry` (429, 503), are retried for every route.
 - **Generated clients follow the same rule.** OpenAPI `POST` operations and every SOAP operation (SOAP is always `POST`) aren't retried after a read timeout. A hand-written base class (`--base-class`) can set `idempotency_key`, or override `should_retry` for statuses.
+- **Per request, from the client:** override `idempotent(self, request)` to decide for each call. `True` or `False` overrides the route, and `None` keeps it. That's how a generated client marks its safe operations from its base class, since it can't edit the routes:
+
+  ```python
+  class TradingAuth(Client):  # eBay's Trading API: every operation is a SOAP POST
+      def idempotent(self, request):
+          return True if request.operation.startswith(("Get", "Verify")) else None
+  ```
 - **`idempotent=True`** on a route says repeating it is safe (a `POST` search, a `PUT` that replaces), and **`idempotent=False`** says a `GET` isn't.
 - **Idempotency keys** make retrying a `POST` safe on APIs that support them (Stripe, Adyen, PayPal, Square). `route(..., idempotency_key="Idempotency-Key")`, or `idempotency_key = "Idempotency-Key"` on the client (for every non-idempotent route, sections included), sends that header with a new UUID for each call, the same on every retry of it, and such routes are retried normally. `idempotency_key=False` on a route turns the client's off, and a key you pass in `with_options(headers=...)` is used as is.
 
@@ -464,6 +471,7 @@ The first four derive from `ApiRouteError`. `client.last_response` holds the mos
 | `on_response(self, request, response, elapsed)` | after every response, whatever its status; for streams, before the body is read | nothing |
 | `check_response(self, request, response)` | after `on_response`, inside the retry loop and before the status check; raise to reject the response | accepts it |
 | `should_retry(self, error, attempt)` | when an attempt fails | retries httpx timeouts, network and protocol errors |
+| `idempotent(self, request)` | once per call, before its first attempt: `True` or `False` decides whether errors after the request may have reached the server are retried | `None`: the route's own (`GET`, `HEAD`, `OPTIONS`, or its `idempotent=`) |
 | `escape_path(self, value)` | for every path value | percent-encodes everything but `A-Z a-z 0-9 - . _ ~` |
 | `redact_url(self, url)` | for the URL in an `UnexpectedResponse` message, and so in retry log lines | masks secret-looking query values and a userinfo password |
 | `soap_header(self, operation)` | when building a SOAP envelope; returns a dict for its Header | no Header |

@@ -57,6 +57,17 @@ class Client(Router):
         """Override to retry other errors, e.g. an UnexpectedResponse with status 503."""
         return isinstance(error, RETRYABLE_ERRORS)
 
+    def idempotent(self, request: RequestSpec) -> bool | None:
+        """Override to say whether repeating a request is safe, so errors after it may have
+        reached the server (a read timeout) are retried: True or False decides for this call,
+        None keeps the route's own (GET, HEAD and OPTIONS, or its idempotent=). Generated
+        clients use it to mark operations by name, e.g. SOAP reads:
+
+            def idempotent(self, request):
+                return True if request.operation.startswith("Get") else None
+        """
+        return None
+
     def on_request(self, request: RequestSpec) -> RequestSpec | None:
         """Runs before every attempt, sync or async. Return a changed request, e.g. one with a
         signature header added through dataclasses.replace, or None to send it as is."""

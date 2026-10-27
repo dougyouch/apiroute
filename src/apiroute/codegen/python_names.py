@@ -21,6 +21,12 @@ RESERVED = frozenset(
         "query_format",
         "inherit",
         "compile_routes",
+        "follow_redirects",
+        "idempotency_key",
+        "idempotent",
+        "check_response",
+        "redact_url",
+        "soap_header",
     }
 )
 

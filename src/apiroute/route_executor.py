@@ -77,10 +77,13 @@ class RouteExecutor:
     def _should_retry(
         self, config: ClientConfig, spec: RequestSpec
     ) -> Callable[[Exception, int], bool]:
-        """The client's should_retry; for a route that isn't idempotent and whose request
-        carries no idempotency key, without the errors that may follow sending."""
+        """The client's should_retry; for a request that isn't idempotent (by the client's
+        idempotent hook, else the route) and carries no idempotency key, without the errors
+        that may follow sending."""
         definition = self._definition
-        if definition.idempotent or IdempotencyKey(definition, config).sent_in(spec.headers):
+        verdict = self._root.idempotent(spec)
+        idempotent = definition.idempotent if verdict is None else verdict
+        if idempotent or IdempotencyKey(definition, config).sent_in(spec.headers):
             return self._root.should_retry
         return UnsentRetryFilter(self._root.should_retry)
 

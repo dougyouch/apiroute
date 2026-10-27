@@ -234,3 +234,79 @@ def test_a_bad_class_key_is_refused(value):
 
         class Bad(Client):
             idempotency_key = value
+
+
+class Trading(Client):
+    """Like eBay's Trading API: every operation is a POST, and reads are named Get..."""
+
+    base_url = "https://trading.test"
+    retries = Retries(attempts=3, sleep=0)
+
+    @route("POST", "/", operation="GetItem")
+    def get_item(self): ...
+
+    @route("POST", "/", operation="AddItem")
+    def add_item(self): ...
+
+    @route("GET", "/status", operation="Status")
+    def status(self): ...
+
+    class orders(Section):
+        inherit = ("retries",)  # as generated sections do
+
+        @route("POST", "/", operation="GetOrders")
+        def get_orders(self): ...
+
+    def idempotent(self, request):
+        if request.operation == "Status":
+            return False
+        return True if request.operation.startswith("Get") else None
+
+
+def attempts(call) -> int:
+    mock = MockTransport()
+    mock.respond(httpx.ReadTimeout("slow"), OK)
+    try:
+        call(mock)
+    except httpx.ReadTimeout:
+        pass
+    return len(mock.calls)
+
+
+@pytest.mark.parametrize(
+    "call, count",
+    [
+        (lambda mock: Trading(transport=mock).get_item(), 2),  # POST the hook marks safe
+        (lambda mock: Trading(transport=mock).add_item(), 1),  # POST it leaves to the route
+        (lambda mock: Trading(transport=mock).status(), 1),  # GET it marks unsafe
+        (lambda mock: Trading(transport=mock).orders.get_orders(), 2),  # a section uses the root's
+        (lambda mock: asyncio.run(Trading(async_transport=mock.aio).aio.get_item()), 2),
+    ],
+)
+def test_the_client_hook_decides_per_request(call, count):
+    assert attempts(call) == count
+
+
+def test_the_hook_sees_the_built_request():
+    seen = []
+
+    class Recording(Trading):
+        def idempotent(self, request):
+            seen.append((request.method, request.operation, request.url))
+            return None
+
+    mock = MockTransport()
+    mock.respond(OK)
+    Recording(transport=mock).get_item()
+    assert seen == [("POST", "GetItem", "https://trading.test/")]
+
+
+def test_a_keyed_request_is_retried_whatever_the_hook_says():
+    class Keyed(Payments):
+        def idempotent(self, request):
+            return False
+
+    mock = MockTransport()
+    mock.respond(httpx.ReadTimeout("slow"), OK)
+    Keyed(transport=mock).create_charge()
+    assert len(mock.calls) == 2
