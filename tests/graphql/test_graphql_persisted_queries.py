@@ -271,3 +271,29 @@ def test_async_paginated_and_persisted_through_edges(mock):
         (False, "c2"),
         (True, "c2"),
     ]
+
+
+def test_a_miss_on_http_404_as_graphql_yoga_sends_it(hub, mock):
+    yoga_miss = httpx.Response(
+        404,
+        json={
+            "errors": [
+                {
+                    "message": "PersistedQueryNotFound",
+                    "extensions": {"code": "PERSISTED_QUERY_NOT_FOUND"},
+                }
+            ]
+        },
+    )
+    mock.respond(yoga_miss, DATA)
+    assert hub.viewer() == "octo"
+    assert ["query" in body for body in bodies(mock)] == [False, True]
+
+
+def test_a_404_without_a_graphql_body_is_still_unexpected(hub, mock):
+    from apiroute import UnexpectedResponse
+
+    mock.respond(httpx.Response(404, text="Not Found"))
+    with pytest.raises(UnexpectedResponse, match="not a GraphQL response") as caught:
+        hub.viewer()
+    assert caught.value.status_code == 404
