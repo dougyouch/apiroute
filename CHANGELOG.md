@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.7.0](https://github.com/dougyouch/apiroute/compare/v1.6.0...v1.7.0) (2026-10-27)
+
+
+### Features
+
+* add graphql_route for hand-written GraphQL operations ([ddb0546](https://github.com/dougyouch/apiroute/commit/ddb054641077497edd8ad4e0dfcae67863b540c6))
+* add graphql_route for hand-written GraphQL operations ([ede15d0](https://github.com/dougyouch/apiroute/commit/ede15d038c51f691e9139d26b91186b9eebce7c3))
+
 ## [1.6.0](https://github.com/dougyouch/apiroute/compare/v1.5.1...v1.6.0) (2026-10-27)
 
 
