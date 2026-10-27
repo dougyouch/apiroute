@@ -33,6 +33,18 @@ class Router:
                 else:
                     value.compile(cls, name)
         SectionAccessor.install(cls)
+        for value in vars(cls).values():
+            if isinstance(value, SectionAccessor):
+                value.section_class._nested_in(cls)
+
+    @classmethod
+    def _nested_in(cls, root: type) -> None:
+        """Tells this section's routes, and its own sections' routes, that root encloses them."""
+        for value in vars(cls).values():
+            if isinstance(value, RouteMethod):
+                value.nested_in(root)
+            elif isinstance(value, SectionAccessor):
+                value.section_class._nested_in(root)
 
     @property
     def aio(self) -> RouterView:

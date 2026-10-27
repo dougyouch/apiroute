@@ -3,7 +3,7 @@
 Build API clients declaratively: one `@route` per endpoint, safe defaults, [httpx](https://www.python-httpx.org/) underneath. REST, GraphQL and SOAP fit in one client class and share its auth, retries, hooks and test mocks. A Python port of the Ruby gem [client-api-builder](https://github.com/dougyouch/client-api-builder).
 
 - **One decorator per call.** `@route("/users/{id}")` for REST and `graphql_route("query ...")` for GraphQL. Signatures are checked when the class is created, so a typo fails at import time, not in production.
-- **GraphQL built for hand-written queries.** You write the query; apiroute fills its variables from the method's arguments, unwraps `data`, raises `GraphQLError` with any partial data, and won't re-send a mutation that may already have run.
+- **GraphQL built for hand-written queries.** You write the query, apiroute checks it against the API's schema when the class is created, fills its variables from the method's arguments, unwraps `data`, raises `GraphQLError` with any partial data, and won't re-send a mutation that may already have run.
 - **Retries you can trust.** Exponential backoff with jitter and `Retry-After` support, and a `should_retry` hook for anything else.
 - **Typed results.** A return annotation turns JSON into a pydantic model or a dataclass.
 - **Sync and async from the same class.** `client.get_user(...)` or `await client.aio.get_user(...)`.
@@ -39,7 +39,7 @@ pip install apiroute            # or: uv add apiroute
 pip install apiroute[pydantic]  # to return pydantic models
 pip install apiroute[codegen]   # to generate clients from OpenAPI/Swagger specs and WSDLs
 pip install apiroute[soap]      # to run generated SOAP clients
-pip install apiroute[graphql]   # to check GraphQL documents for syntax errors when a class is created
+pip install apiroute[graphql]   # to check GraphQL documents against the API's schema when a class is created
 ```
 
 apiroute needs Python 3.10 or newer, and httpx.
@@ -287,7 +287,31 @@ class GitHub(Client):
 - **Errors.** A response with `errors` raises `GraphQLError`, which carries `.errors`, `.data` (anything the server resolved anyway), `.codes` (the `extensions.code` values) and `.response`. With `errors="partial"`, a response that has errors but non-null `data` returns that data and logs the errors. A 400 with a GraphQL `errors` body raises `GraphQLError`; any other status outside 2xx raises `UnexpectedResponse`.
 - **Operation names.** The operation's name is `RequestSpec.operation`, so `on_request`, `on_response` and `mock.on(operation="Repo")` can tell operations apart even though they all share one URL. `operation_name=` picks one operation from a document that has several, or names an anonymous operation. Without it, an anonymous operation is named after its method.
 - **Retries.** Queries are retried like any other route. A mutation is not retried after an error that may have happened once the server had the request: read and write timeouts or errors, and protocol errors. Errors before anything was sent, such as connection failures and pool timeouts, are still offered to `should_retry`. Pass `idempotent=True` for a mutation that is safe to repeat.
-- **Checking documents.** apiroute reads each document's operation type, name and variables itself. With `pip install apiroute[graphql]`, it also parses the document with graphql-core when the class is created, so a syntax error raises `RouteDefinitionError` at import time instead of failing on the server. Documents aren't checked against a schema.
+- **Checking documents.** apiroute reads each document's operation type, name and variables itself. With `pip install apiroute[graphql]`, it also parses the document with graphql-core when the class is created, so a syntax error raises `RouteDefinitionError` at import time instead of failing on the server. To check documents against the API's schema as well, see below.
+
+### Schema validation
+
+Set `graphql_schema` and every GraphQL route is validated against the API's schema when the class is created. A misspelled field, a wrong argument, or a variable of the wrong type fails at import time instead of in production:
+
+```python
+class GitHub(Client):
+    base_url = "https://api.github.com"
+    graphql_schema = "schema.graphql"  # next to this module; a .json introspection result works too
+
+    viewer = graphql_route("query Viewer { viewer { logn } }")
+```
+
+```
+RouteDefinitionError: GitHub.viewer: the document doesn't match graphql_schema:
+  - Cannot query field 'logn' on type 'User'. Did you mean 'login'? (line 1, column 25)
+```
+
+- **The schema.** A path to an SDL file (`.graphql`, `.graphqls`, `.gql`), a path to a `.json` introspection result (with or without its `{"data": ...}` envelope), or a `graphql.GraphQLSchema`. A relative path is resolved against the directory of the module that declares `graphql_schema`, so a packaged client can ship its schema next to its code. GitHub publishes its schema as [`schema.docs.graphql`](https://docs.github.com/en/graphql/overview/public-schema).
+- **What's checked.** Everything graphql-core validates: fields, arguments, variable types and usage, fragments, and the operation's root type. All of a document's problems are reported in one `RouteDefinitionError`.
+- **When.** When the class is created, or on a route's first use with `compile_routes = "lazy"`. Each schema file is loaded once per process, so a large schema such as GitHub's costs its build time once, on the first class that uses it.
+- **Inheritance.** Subclasses inherit `graphql_schema`. A section without its own uses the schema of the class it's nested in, and `graphql_schema = None` turns validation off for a class or section. Inherited routes stay validated against the schema of the class that defined them.
+- **Skipping one route.** `graphql_route(..., validate=False)` skips the schema check for a route that uses fields your schema file doesn't have yet, such as preview features. Its syntax is still checked.
+- **Without graphql-core.** Setting `graphql_schema` without `pip install apiroute[graphql]` raises `RouteDefinitionError`, rather than silently skipping the checks you asked for.
 
 In tests, `graphql_response(data=..., errors=...)` from `apiroute.testing` builds the response, and `MockCall.graphql_variables` returns the variables that were sent:
 

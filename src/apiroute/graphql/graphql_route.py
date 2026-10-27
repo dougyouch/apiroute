@@ -18,6 +18,7 @@ def graphql_route(
     timeout: float | None = None,
     operation_name: str | None = None,
     idempotent: bool | None = None,
+    validate: bool = True,
 ) -> GraphQLRouteDecorator:
     """Declares a GraphQL operation, written by hand, on a def or on its own:
 
@@ -37,7 +38,9 @@ def graphql_route(
     the return annotation. errors="raise" raises GraphQLError when the response has errors;
     "partial" returns non-null data anyway and logs them. operation_name picks one operation
     of several, or names an anonymous one for hooks and mocks. A mutation isn't retried once
-    the request may have reached the server, unless idempotent=True.
+    the request may have reached the server, unless idempotent=True. When the class (or one
+    enclosing its section) sets graphql_schema, the document is validated against it as the
+    route is compiled; validate=False skips that for this route.
     """
     options = GraphQLRouteOptions(
         document=document,
@@ -50,6 +53,7 @@ def graphql_route(
         timeout=timeout,
         operation_name=operation_name,
         idempotent=idempotent,
+        validate=validate,
     )
     return GraphQLRouteDecorator(GraphQLRouteBuilder(options))
 
