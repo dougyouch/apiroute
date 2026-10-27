@@ -51,6 +51,8 @@ class DictClientEmitter:
         standard = []
         if self._is_root and any(scheme.style == "basic" for scheme in self._definition.auth):
             standard.append("import base64")
+        if _mentions(body, "Iterator"):
+            standard.append("from collections.abc import Iterator")
         typing_names = [n for n in ("Annotated", "Any", "Literal") if _mentions(body, n)]
         if typing_names:
             standard.append(f"from typing import {import_names(typing_names)}")
@@ -186,6 +188,8 @@ def _graphql_decorator(out: SourceWriter, operation: Operation) -> None:
         out.line(f"{_document_literal(spec.document)},")
         if spec.path != "/graphql":
             out.line(f"path={py_str(spec.path)},")
+        if spec.paginate is not None:
+            out.line(f"paginate={py_str(spec.paginate)},")
         renamed = {
             p.wire_name: p.name
             for p in operation.parameters

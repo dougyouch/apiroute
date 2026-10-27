@@ -39,6 +39,27 @@ class TypedClient:
             return _validated_later(result, response_type)
         return _validated(response_type, result)
 
+    def _paginate(self, route_name: str, item_type: Any, *args: Any, **kwargs: Any) -> Any:
+        """_call for a paginated route: the dict route's items, each validated as item_type
+        when iteration reaches it (an async iterator through .aio)."""
+        route = getattr(self._parent, route_name)
+        items = route(*map(_plain, args), **{name: _plain(v) for name, v in kwargs.items()})
+        if isinstance(item_type, str):
+            item_type = _resolved(type(self).__module__, item_type)
+        if self._is_async:
+            return _validated_async_items(items, item_type)
+        return _validated_items(items, item_type)
+
+
+def _validated_items(items: Any, item_type: Any) -> Any:
+    for item in items:
+        yield _validated(item_type, item)
+
+
+async def _validated_async_items(items: Any, item_type: Any) -> Any:
+    async for item in items:
+        yield _validated(item_type, item)
+
 
 async def _validated_later(result: Any, response_type: Any) -> Any:
     return _validated(response_type, await result)

@@ -63,3 +63,42 @@ def test_with_options_passes_through(models, recorder):
 async def test_aio(models, recorder):
     recorder.respond(httpx.Response(201, json={"id": 2, "name": "b"}))
     assert await models.aio.create_repo(NewRepo(name="b")) == Repo(id=2, name="b")
+
+
+def test_paginate_validates_items_lazily():
+    import asyncio
+    from dataclasses import dataclass
+
+    from apiroute import TypedClient
+
+    @dataclass
+    class Item:
+        id: int
+
+    yielded = []
+
+    class Parent:
+        def items(self, *, limit):
+            for number in range(limit):
+                yielded.append(number)
+                yield {"id": number}
+
+    class AsyncParent:
+        is_async = True
+
+        async def _gen(self, limit):
+            for number in range(limit):
+                yield {"id": number}
+
+        def items(self, *, limit):
+            return self._gen(limit)
+
+    items = TypedClient(Parent())._paginate("items", Item, limit=3)
+    assert yielded == []
+    assert next(items) == Item(0)
+    assert list(items) == [Item(1), Item(2)]
+
+    async def collect():
+        return [i async for i in TypedClient(AsyncParent())._paginate("items", Item, limit=2)]
+
+    assert asyncio.run(collect()) == [Item(0), Item(1)]

@@ -8,7 +8,9 @@ from apiroute.from_client import FROM_CLIENT
 from apiroute.graphql.graphql_body import GraphQLBody
 from apiroute.graphql.graphql_decoder import GraphQLDecoder
 from apiroute.graphql.graphql_document import GraphQLDocument
+from apiroute.graphql.graphql_item_converter import GraphQLItemConverter
 from apiroute.graphql.graphql_operation import GraphQLOperation
+from apiroute.graphql.graphql_paginator import GraphQLPaginator
 from apiroute.graphql.graphql_route_options import GraphQLRouteOptions
 from apiroute.graphql.graphql_schema_check import check_against_schema
 from apiroute.graphql.graphql_schema_loader import load_schema
@@ -32,8 +34,10 @@ class GraphQLRouteBuilder:
     def spec(self, owner: type, name: str, func: Callable) -> RouteSpec:
         options = self._options
         operation = self._operation
-        label = operation.name or options.operation_name or name
+        label = self._label(name)
         params = list(inspect.signature(func).parameters)[1:]
+        if options.paginate:
+            self._check_pagination(operation)
         return RouteSpec(
             method="POST",
             path=options.path,
@@ -42,13 +46,27 @@ class GraphQLRouteBuilder:
             expected=EXPECTED,
             returns="json",
             timeout=options.timeout,
-            model=options.model,
+            # a paginated route converts items, not the page's data
+            model=Any if options.paginate else options.model,
             headers={"Accept": ACCEPT, **(options.headers or {})},
             body_format=GraphQLBody(options.document, operation.name),
             decoder=GraphQLDecoder(label, options.data, options.errors),
             operation=label,
             idempotent=self._idempotent(operation),
         )
+
+    def paginator(self, name: str, func: Callable) -> GraphQLPaginator | None:
+        """What turns the bound method into an iterator over pages, for paginate= routes."""
+        options = self._options
+        if not options.paginate:
+            return None
+        converter = GraphQLItemConverter(options.model, func)
+        return GraphQLPaginator(self._label(name), options.paginate, converter)
+
+    @property
+    def cursor(self) -> str:
+        """The variable a paginated route's later pages set to the previous endCursor."""
+        return self._options.cursor
 
     def check_schema(self, holder: type) -> None:
         """Validates the document against the graphql_schema holder declares, unless the route
@@ -75,6 +93,16 @@ class GraphQLRouteBuilder:
         stub.__doc__ = self._options.document
         stub.__signature__ = inspect.Signature(parameters)
         return stub
+
+    def _label(self, name: str) -> str:
+        return self._operation.name or self._options.operation_name or name
+
+    def _check_pagination(self, operation: GraphQLOperation) -> None:
+        cursor = self._options.cursor
+        if self._options.data is not None:
+            raise ValueError("paginate= returns the connection's items; it can't take data=")
+        if cursor not in {variable.name for variable in operation.variables}:
+            raise ValueError(f"paginate= needs the operation to declare ${cursor}: String")
 
     @functools.cached_property
     def _operation(self) -> GraphQLOperation:

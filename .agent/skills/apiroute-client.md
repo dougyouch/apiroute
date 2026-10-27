@@ -178,6 +178,7 @@ Each repository needs these GitHub and PyPI settings:
 - **A spec change breaks generation:** Build fails before committing, and the last good code stays on main. Reproduce with `scripts/generate.py --fetch --only <name>`, then fix apiroute (preferred) or the auth class. Never patch `specs/` or generated files by hand.
 - **A GraphQL schema change breaks an operation:** Build fails listing each broken operation as `file:line:column`. The operations are yours: update them in `operations/<api>/` (a renamed or removed field), regenerate and commit (`feat!:` if a released method's result changed shape). Deprecation warnings in the Build log say what to move off before the API removes it.
 - **Add a GraphQL operation:** add a `.graphql` file (or a query to one), `generate.py --only <name>`, test and commit (`feat:`).
+- **Lists:** for a Relay connection the user wants in full, put `@paginate` on the connection field and give the operation a `$after: String` variable. The generated method then iterates every item across pages. Leave it off where one page (with `totalCount`) is what's wanted, because adding it later changes the method's return type.
 - **Add an API:** add an `apis.yaml` entry, verifying its spec and docs as in step 1, then `generate.py --fetch --only <name>`, then test and commit (`feat:`).
 - **Remove an API:** delete its entry, its spec and its folder, then regenerate and commit (`feat!:` if it was released).
 - **apiroute adds a feature you need:** release apiroute, raise the minimum in `pyproject.toml`, `uv lock`, regenerate, commit.

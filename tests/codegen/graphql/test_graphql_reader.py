@@ -119,3 +119,22 @@ def test_needs_graphql_core(monkeypatch):
     monkeypatch.setattr(builtins, "__import__", without_graphql)
     with pytest.raises(RuntimeError, match=r"pip install apiroute\[codegen\]"):
         read()
+
+
+def test_a_paginated_operation_returns_its_items():
+    definition = read(str(GRAPHQL / "paginated"))
+    repos, edges = definition.root.operations
+    assert repos.graphql.paginate == "viewer.repos"
+    assert "@paginate" not in repos.graphql.document
+    assert (repos.response.expr, repos.response.models) == (
+        "ReposViewerReposNodes",
+        frozenset({"ReposViewerReposNodes"}),
+    )
+    assert repos.response_plain == "Iterator[dict[str, Any]]"
+    assert "ReposResult" in definition.models  # the whole result is still modelled
+    assert edges.graphql.paginate == "viewer.repositories"
+    assert edges.response.expr == "RepoEdgesViewerRepositoriesEdgesNode | None"
+
+
+def test_operations_without_paginate_are_read_as_before():
+    assert all(o.graphql.paginate is None for o in read().root.operations)

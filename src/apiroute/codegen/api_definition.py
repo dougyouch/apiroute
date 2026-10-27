@@ -44,6 +44,9 @@ class GraphQLOperationSpec:
     operation_name: str
     operation_type: str  # "query" or "mutation"
     path: str = "/graphql"
+    # the response-key path to the connection a paginated method iterates; its Operation's
+    # response is then the item type
+    paginate: str | None = None
 
 
 @dataclass

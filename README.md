@@ -289,6 +289,43 @@ class GitHub(Client):
 - **Retries.** Queries are retried like any other route. A mutation is not retried after an error that may have happened once the server had the request: read and write timeouts or errors, and protocol errors. Errors before anything was sent, such as connection failures and pool timeouts, are still offered to `should_retry`. Pass `idempotent=True` for a mutation that is safe to repeat.
 - **Checking documents.** apiroute reads each document's operation type, name and variables itself. With `pip install apiroute[graphql]`, it also parses the document with graphql-core when the class is created, so a syntax error raises `RouteDefinitionError` at import time instead of failing on the server. To check documents against the API's schema as well, see below.
 
+### Pagination
+
+Most GraphQL lists are Relay connections, read a page at a time. `paginate=` turns a route into an iterator over every item, following `pageInfo.endCursor` for you:
+
+```python
+class GitHub(Client):
+    base_url = "https://api.github.com"
+
+    @graphql_route(
+        """
+        query Issues($owner: String!, $name: String!, $after: String) {
+          repository(owner: $owner, name: $name) {
+            issues(first: 100, after: $after, states: OPEN) {
+              pageInfo { hasNextPage endCursor }
+              nodes { number title }
+            }
+          }
+        }
+    """,
+        paginate="repository.issues",
+    )
+    def open_issues(self, owner: str, name: str) -> Iterator[Issue]: ...
+
+
+for issue in gh.open_issues("python", "cpython"):  # 100 per request, as many requests as it takes
+    print(issue.number, issue.title)
+
+first_ten = list(itertools.islice(gh.open_issues("python", "cpython"), 10))  # one request
+async for issue in gh.aio.open_issues("python", "cpython"):
+    ...
+```
+
+- **How it pages.** The method returns an iterator, so nothing is sent until you iterate, and each page is requested only when iteration reaches it. Each request passes the previous page's `endCursor` as `$after`, until `hasNextPage` is false. Use `cursor=` for a variable with another name. Passing `after=` starts from that cursor.
+- **What it yields.** The connection's `nodes`, or each `edges[].node`, at the dotted `paginate` path (aliases count). Items are converted by `model=`, or by `X` in an `Iterator[X]` return annotation; otherwise they're dicts. A null connection (a repository that doesn't exist) yields nothing.
+- **What the operation needs.** A `$after` variable, which is checked when the class is created, and `pageInfo { hasNextPage endCursor }` plus `nodes` or `edges { node }` on the connection, which is checked as pages arrive. A server that answers `hasNextPage` with no cursor, or with the same cursor again, raises `ValueError` instead of looping forever.
+- **Every page is an ordinary request**, with your headers, hooks and retries. A `GraphQLError` on a later page raises from the iteration, after the earlier items.
+
 ### Schema validation
 
 Set `graphql_schema` and every GraphQL route is validated against the API's schema when the class is created. A misspelled field, a wrong argument, or a variable of the wrong type fails at import time instead of in production:
@@ -610,6 +647,18 @@ result.repository.stargazer_count  # RepositoryResult -> RepositoryRepository ->
 - **Methods return the whole `data`.** `gh.repos.repository(...)` returns `{"repository": ...}`, not the repository, so adding a second field to an operation never changes a method's return type.
 - **Models follow your selections.** With `--models`, each operation gets `<Operation>Result` and one model per selected object, named by its path (`RepositoryRepositoryOwner`). Aliases name fields, nullable fields are `| None`, fields under `@include`/`@skip` default to `None`, and fragments are merged into the models that use them. A selection on an interface or union with type conditions (`... on User`) becomes a union of one model per named type plus an `...Other` fallback, told apart by `__typename`, which the generator adds to the query where it's missing.
 - **Inputs, enums and scalars.** Input objects and enums your operations use become models and `Literal` aliases. `Int`, `Float`, `String`, `ID` and `Boolean` map to Python types; custom scalars are `Any` unless `--scalar Name=module:type` maps them.
+- **Pagination with `@paginate`.** Put it on a connection field and the generated method pages through it, as with `paginate=`. The directive is apiroute's own: it's removed before the query is validated or sent. The method returns `Iterator[dict[str, Any]]`, or `Iterator[<item model>]` from `.models`, and the generator checks for `$after`, `pageInfo { hasNextPage endCursor }` and `nodes` or `edges { node }`:
+
+  ```graphql
+  query Issues($owner: String!, $name: String!, $after: String) {
+    repository(owner: $owner, name: $name) {
+      issues(first: 100, after: $after) @paginate {
+        pageInfo { hasNextPage endCursor }
+        nodes { number title }
+      }
+    }
+  }
+  ```
 - **`--endpoint`** sets the root client's `base_url` and the routes' path. Without it, routes post to `/graphql` and you pass `base_url=` when you construct the client. `--client-name`, `--base-class`, `--models` and `--no-format` work as for the other formats.
 - **The schema** can be an SDL file, a `.json` introspection result, or an endpoint URL to introspect (with `-H` for auth). For a repository that regenerates on a schedule, save it with `fetch-schema` and generate from the file: SDL diffs cleanly, and builds stay reproducible. Header values are used as given, so take tokens from the environment.
 - Generated clients don't validate at run time, so they don't need graphql-core; the generator already did. Generating needs `pip install apiroute[codegen]`.

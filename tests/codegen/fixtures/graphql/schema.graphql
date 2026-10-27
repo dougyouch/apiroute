@@ -58,7 +58,19 @@ union SearchResult = User | Repository | Organization
 
 type RepositoryConnection {
   nodes: [Repository!]!
+  edges: [RepositoryEdge]
   totalCount: Int!
+  pageInfo: PageInfo!
+}
+
+type RepositoryEdge {
+  cursor: String!
+  node: Repository
+}
+
+type PageInfo {
+  hasNextPage: Boolean!
+  endCursor: String
 }
 
 enum Visibility {

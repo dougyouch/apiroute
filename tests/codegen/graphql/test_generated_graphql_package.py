@@ -162,3 +162,49 @@ def test_formatted_output_passes_ruff(tmp_path):
         check=False,
     )
     assert formatted.returncode == 0, formatted.stdout
+
+
+def repos_page(names, cursor=None, more=False):
+    nodes = [{"name": name, "stargazerCount": 1} for name in names]
+    repos = {
+        "pageInfo": {"hasNextPage": more, "endCursor": cursor},
+        "totalCount": 9,
+        "nodes": nodes,
+    }
+    return graphql_response(data={"viewer": {"login": "octo", "repos": repos}})
+
+
+@pytest.fixture
+def paged(generate_graphql, mock):
+    package = generate_graphql(operations=str(GRAPHQL / "paginated"))
+    return package.HubApi(transport=mock, async_transport=mock.aio)
+
+
+def test_a_generated_method_pages_through_dicts(paged, mock):
+    mock.respond(repos_page(["a", "b"], "c1", True), repos_page(["c"]))
+    assert [repo["name"] for repo in paged.repos()] == ["a", "b", "c"]
+    assert [call.graphql_variables for call in mock.calls] == [{}, {"after": "c1"}]
+    assert "@paginate" not in mock.last.json()["query"]
+
+
+@needs_pydantic
+def test_a_generated_typed_method_pages_through_models(paged, mock):
+    mock.respond(repos_page(["a"], "c1", True), repos_page(["b"]))
+    items = list(paged.models.repos())
+    assert [type(item).__name__ for item in items] == ["ReposViewerReposNodes"] * 2
+    assert [item.name for item in items] == ["a", "b"]
+
+
+@needs_pydantic
+def test_generated_paging_through_edges_and_aio(paged, mock):
+    def edges_page(names, cursor=None, more=False):
+        edges = [{"node": {"name": name}} for name in names]
+        connection = {"pageInfo": {"hasNextPage": more, "endCursor": cursor}, "edges": edges}
+        return graphql_response(data={"viewer": {"repositories": connection}})
+
+    mock.respond(edges_page(["a"], "c1", True), edges_page(["b"]))
+
+    async def collect():
+        return [item.name async for item in paged.models.aio.repo_edges()]
+
+    assert asyncio.run(collect()) == ["a", "b"]

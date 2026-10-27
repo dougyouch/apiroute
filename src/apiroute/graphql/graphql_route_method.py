@@ -1,7 +1,10 @@
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from typing import Any
 
+from apiroute.graphql.graphql_paginator import GraphQLPaginator
 from apiroute.graphql.graphql_route_builder import GraphQLRouteBuilder
+from apiroute.request_options import RequestOptions
 from apiroute.route_definition_error import RouteDefinitionError
 from apiroute.route_method import RouteMethod
 from apiroute.route_spec import RouteSpec
@@ -20,12 +23,31 @@ class GraphQLRouteMethod(RouteMethod):
         self._builder = builder
         self._enclosing: list[type] = []
         self._schema_checked = False
+        self._paginator: GraphQLPaginator | None = None
 
     def _spec_for(self, owner: type, name: str) -> RouteSpec:
         with _labelled(owner, name):
             spec = self._builder.spec(owner, name, self._func)
+            self._paginator = self._builder.paginator(name, self._func)
             self._check_schema(owner)
         return spec
+
+    def bind(self, router: Any, options: RequestOptions, is_async: bool = False) -> Callable:
+        """The route as a method of router; for a paginate= route, one returning an iterator
+        (an async iterator when is_async) over the connection's items."""
+        call = super().bind(router, options, is_async)
+        if self._paginator is None:
+            return call
+
+        def page_call(cursor: Any) -> Callable:
+            if cursor is None:
+                return call
+            cursor_options = RequestOptions(body={self._builder.cursor: cursor})
+            return super(GraphQLRouteMethod, self).bind(
+                router, options.merged(cursor_options), is_async
+            )
+
+        return self._paginator.wrap(page_call, is_async)
 
     def nested_in(self, root: type) -> None:
         self._enclosing.append(root)
