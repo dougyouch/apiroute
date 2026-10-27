@@ -4,6 +4,14 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [1.6.0](https://github.com/dougyouch/apiroute/compare/v1.5.1...v1.6.0) (2026-10-27)
+
+
+### Features
+
+* add apiroute.testing with MockTransport and a pytest plugin ([0304ac9](https://github.com/dougyouch/apiroute/commit/0304ac9d099e26ee720d15392115eef49eded1cd))
+* add apiroute.testing with MockTransport and a pytest plugin ([cecb862](https://github.com/dougyouch/apiroute/commit/cecb862e5b4ff27d94a8d0b1d90002017ce73cc7))
+
 ## [1.5.1](https://github.com/dougyouch/apiroute/compare/v1.5.0...v1.5.1) (2026-10-26)
 
 
