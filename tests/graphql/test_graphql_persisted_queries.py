@@ -233,3 +233,41 @@ def test_real_errors_are_still_warnings(hub, mock, caplog):
     with caplog.at_level(logging.DEBUG, logger="apiroute"), pytest.raises(GraphQLError):
         hub.viewer()
     assert [r.levelname for r in caplog.records if "failed on attempt" in r.message] == ["WARNING"]
+
+
+def test_async_paginated_and_persisted_through_edges(mock):
+    document = """
+    query Issues($after: String) {
+      viewer {
+        issues(first: 1, after: $after) { pageInfo { hasNextPage endCursor } edges { node { n } } }
+      }
+    }
+    """
+
+    class Api(Client):
+        base_url = "https://x.test"
+        issues = graphql_route(document, persisted=True, paginate="viewer.issues")
+
+    def page(n, cursor=None, more=False):
+        connection = {
+            "pageInfo": {"hasNextPage": more, "endCursor": cursor},
+            "edges": [{"node": {"n": n}}],
+        }
+        return graphql_response(data={"viewer": {"issues": connection}})
+
+    mock.respond(NOT_FOUND, page(1, "c1", True), page(2, "c2", True), GITHUB_REPLY, page(3))
+    api = Api(transport=mock, async_transport=mock.aio)
+
+    async def collect():
+        return [item["n"] async for item in api.aio.issues()]
+
+    assert asyncio.run(collect()) == [1, 2, 3]
+    # page 1 misses and registers, page 2 is hash-only, page 3's hash-only request gets a
+    # request error, so it's sent in full (and this client stays on full documents)
+    assert [("query" in b, b["variables"].get("after")) for b in bodies(mock)] == [
+        (False, None),
+        (True, None),
+        (False, "c1"),
+        (False, "c2"),
+        (True, "c2"),
+    ]
