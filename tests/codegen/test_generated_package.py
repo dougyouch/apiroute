@@ -125,3 +125,28 @@ def test_models_index_is_lazy_but_complete(shop):
 def test_dict_only_generation_has_no_models(generate):
     package = generate("shop.yaml", models=False)
     assert not hasattr(package.ShopApi, "models")
+
+
+def test_lazy_attributes_are_annotated_for_type_checkers_only(shop):
+    source = inspect.getsource(sys.modules[f"{shop.__name__}.client"])
+    assert '# mypy: disable-error-code="empty-body"' in source.splitlines()[1]
+    assert "if TYPE_CHECKING:\n    from .models.client import ShopApiModels\n" in source
+    assert '    pets: PetsSection = lazy(".pets.client", "PetsSection")' in source
+    assert '    models: ShopApiModels = lazy(".models.client", "ShopApiModels")' in source
+    assert f"{shop.__name__}.pets.client" not in sys.modules  # still loaded on first use
+
+
+def test_every_route_body_ends_with_an_ellipsis(shop):
+    import ast
+
+    # pyright accepts a docstring followed by ..., not a docstring alone
+    source = inspect.getsource(module(shop, "pets.client"))
+    routes = [
+        node
+        for node in ast.walk(ast.parse(source))
+        if isinstance(node, ast.FunctionDef) and node.decorator_list
+    ]
+    assert routes
+    for node in routes:
+        last = node.body[-1]
+        assert isinstance(last, ast.Expr) and last.value.value is Ellipsis, node.name

@@ -1,18 +1,18 @@
 import weakref
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Concatenate
 
 from apiroute.graphql.graphql_paginator import GraphQLPaginator
 from apiroute.graphql.graphql_persisted_call import GraphQLPersistedCall
 from apiroute.graphql.graphql_route_builder import GraphQLRouteBuilder
 from apiroute.request_options import RequestOptions
 from apiroute.route_definition_error import RouteDefinitionError
-from apiroute.route_method import RouteMethod
+from apiroute.route_method import P, R, RouteMethod
 from apiroute.route_spec import RouteSpec
 
 
-class GraphQLRouteMethod(RouteMethod):
+class GraphQLRouteMethod(RouteMethod[P, R]):
     """A RouteMethod whose spec is built from its GraphQL operation when it is compiled, since
     the variables are matched against the method's parameters and its class's attributes.
 
@@ -20,7 +20,7 @@ class GraphQLRouteMethod(RouteMethod):
     sets none, of the nearest class enclosing it. A section's routes compile before the
     enclosing classes exist, so those report themselves through nested_in."""
 
-    def __init__(self, func: Callable, builder: GraphQLRouteBuilder):
+    def __init__(self, func: Callable[Concatenate[Any, P], R], builder: GraphQLRouteBuilder):
         super().__init__(func, None)
         self._builder = builder
         self._enclosing: list[type] = []

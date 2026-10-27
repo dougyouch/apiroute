@@ -5,6 +5,7 @@ from typing import Annotated, Any, NamedTuple, get_origin
 from apiroute.argument_targets import ArgumentTarget
 from apiroute.body_encoder import BODY_FORMATS
 from apiroute.deferred_converter import DeferredConverter
+from apiroute.from_response import FROM_RESPONSE
 from apiroute.http_method import infer_http_method, normalize_http_method
 from apiroute.model_types import strip_annotated
 from apiroute.path_template import PathTemplate
@@ -113,7 +114,7 @@ class RouteCompiler:
                 raise TypeError(f"{stars}{param.name} isn't supported; name each argument")
             markers = self._markers(param)
             target = next((m for m in map(_as_target, markers) if m is not None), None)
-            if any(_is_result(marker) for marker in markers):
+            if param.default is FROM_RESPONSE or any(_is_result(marker) for marker in markers):
                 result_param = self._only_result_param(result_param, param)
             elif target is not None and target.location == "body":
                 body_param = self._only_body_param(body_param, param.name, has_body_template)

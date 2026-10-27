@@ -113,6 +113,8 @@ def get_login(self, username: str, *, data: Result) -> str:
 gh.get_login("octocat")  # "octocat"
 ```
 
+For type checkers, mark the parameter with its default instead: `*, data: dict = FROM_RESPONSE`. Its annotation is then the response's own type (a model there converts the response, as with `Result`), and callers aren't asked for it.
+
 ### Streaming
 
 | `stream=` | Destination | Returns |
@@ -560,6 +562,29 @@ await aclose_transports()  # at shutdown, inside the event loop
 ```
 
 Retries sleep with `asyncio.sleep`. `should_retry`, `escape_path`, `on_request`, `on_response` and callable headers stay plain sync methods, shared by both sides.
+
+## Type checking
+
+apiroute ships type information (`py.typed`), and routes keep their signatures for mypy, pyright and editors such as VS Code's Pylance:
+
+```python
+class GitHubApi(Client):
+    @route("/users/{username}")
+    def get_user(self, username: str, *, fields: str | None = None) -> dict[str, Any]: ...
+
+
+gh.get_user("octocat")  # dict[str, Any]
+gh.get_user(42)  # error: "int" isn't "str"
+gh.get_user("octocat", page=2)  # error: no parameter "page"
+```
+
+- **Decorated routes** (`@route` and `@graphql_route` on a `def`) are typed as their method without `self`. A `paginate=` route annotated `Iterator[Issue]` yields `Issue`s.
+- **Generated clients are typed end to end:** `client.pets.models.get_pet(1)` is a `Pet` with typed fields, and the dict routes have their own signatures. Their section and `.models` attributes are annotated, with the classes imported for type checkers only, so loading stays lazy. Generated packages pass mypy and pyright.
+- **Routes without a `def`** (`get_user = route(...)`) get their signature when the class is created, so type checkers see a callable taking anything and returning `Any`.
+- **Nested sections** (`class issues(Section)` inside a client) are typed as instances by pyright and Pylance. mypy can't follow that, so to mypy their routes are `Any`, never an error. For full mypy types, put the section in its own module and reach it with `issues: IssuesSection = lazy(".issues", "IssuesSection")`, as generated clients do.
+- **Defaults:** `FROM_CLIENT` and `FROM_RESPONSE` are valid for any parameter type.
+- **Route bodies:** they're never run, so end them with `...` (after a docstring too). mypy still reports `empty-body` for those. Turn it off for client modules with a `# mypy: disable-error-code="empty-body"` line, as generated files do.
+- **`.aio` and `with_options()`** views are `Any`, because their methods return coroutines or depend on the options.
 
 ## Testing
 

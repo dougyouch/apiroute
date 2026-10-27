@@ -4,7 +4,9 @@ import importlib
 import io
 import sys
 import typing
-from typing import Any
+from typing import Any, TypeVar
+
+T = TypeVar("T", bound="TypedClient")
 
 
 class TypedClient:
@@ -25,10 +27,12 @@ class TypedClient:
         self._is_async = getattr(parent, "is_async", False)
 
     @property
-    def aio(self) -> "TypedClient":
+    def aio(self) -> Any:
+        """The same view, whose methods return coroutines; Any to type checkers, since the
+        methods' annotations describe the sync results."""
         return type(self)(self._parent.aio)
 
-    def with_options(self, **options: Any) -> "TypedClient":
+    def with_options(self: T, **options: Any) -> T:
         return type(self)(self._parent.with_options(**options))
 
     def _call(self, route_name: str, response_type: Any, *args: Any, **kwargs: Any) -> Any:

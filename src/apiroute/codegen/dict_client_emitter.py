@@ -27,6 +27,9 @@ class DictClientEmitter:
     def source(self) -> str:
         out = SourceWriter()
         out.line(generated_header(self._version, self._definition.source))
+        if self._group.operations:
+            # route bodies are ... by design: the decorator replaces them
+            out.line('# mypy: disable-error-code="empty-body"')
         if any(operation.graphql for operation in self._group.operations):
             out.line("# ruff: noqa: E501  (GraphQL documents keep their own line lengths)")
         out.docstring(self._module_doc())
@@ -54,6 +57,8 @@ class DictClientEmitter:
         if _mentions(body, "Iterator"):
             standard.append("from collections.abc import Iterator")
         typing_names = [n for n in ("Annotated", "Any", "Literal") if _mentions(body, n)]
+        if self._lazy_entries():
+            typing_names.append("TYPE_CHECKING")
         if typing_names:
             standard.append(f"from typing import {import_names(typing_names)}")
         if standard:
@@ -73,6 +78,18 @@ class DictClientEmitter:
             # the user's own code: a first-party block of its own, as isort orders it
             module, name = self._base_class
             out.lines("", f"from {module} import {name}")
+        self._type_checking_imports(out)
+
+    def _type_checking_imports(self, out: SourceWriter) -> None:
+        """The classes the lazy attributes load, for type checkers only: importing them here
+        at run time would load every section and model when the client is imported."""
+        entries = self._lazy_entries()
+        if not entries:
+            return
+        out.lines("", "if TYPE_CHECKING:")
+        with out.indented():
+            for _, module, class_name in sorted(entries, key=lambda entry: entry[1]):
+                out.line(f"from {module} import {class_name}")
 
     def _body_text(self) -> str:
         out = SourceWriter()
@@ -120,7 +137,8 @@ class DictClientEmitter:
                     out.line(f"{py_str(scheme.wire_name)}: {_credential(scheme)},")
             out.line("}")
 
-    def _lazy_attributes(self, out: SourceWriter) -> None:
+    def _lazy_entries(self) -> list[tuple[str, str, str]]:
+        """(attribute, module, class) for each section (on the root) and the .models view."""
         entries = []
         if self._is_root:
             entries += [
@@ -129,10 +147,15 @@ class DictClientEmitter:
             ]
         if self._with_models:
             entries.append(("models", ".models.client", models_class_name(self._group)))
+        return entries
+
+    def _lazy_attributes(self, out: SourceWriter) -> None:
+        """Annotated with their classes, so type checkers see client.pets as a PetsSection."""
+        entries = self._lazy_entries()
         if entries:
             out.line()
         for name, module, class_name in entries:
-            out.line(f"{name} = lazy({py_str(module)}, {py_str(class_name)})")
+            out.line(f"{name}: {class_name} = lazy({py_str(module)}, {py_str(class_name)})")
 
     def _init(self, out: SourceWriter) -> None:
         out.line()
@@ -156,8 +179,9 @@ class DictClientEmitter:
         out.line(f") -> {_return_type(operation)}:")
         with out.indented():
             out.docstring(_doc(operation))
-            if not _doc(operation):
-                out.line("...")
+            # after a docstring too: pyright accepts a body ending in ... as a stub, and
+            # mypy's empty-body check is off in generated files
+            out.line("...")
 
 
 def _mentions(text: str, name: str) -> bool:

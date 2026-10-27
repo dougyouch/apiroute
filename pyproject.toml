@@ -74,6 +74,7 @@ apiroute = "apiroute.testing.pytest_plugin"
 dev = [
     "defusedxml>=0.7",
     "graphql-core>=3.2",
+    "mypy>=1.13",
     "pydantic>=2.6",
     "pytest>=8",
     "pyyaml>=6",

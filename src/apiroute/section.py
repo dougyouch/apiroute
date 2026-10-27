@@ -2,9 +2,10 @@ from typing import Any
 
 from apiroute.client_config import ClientConfig
 from apiroute.router import Router
+from apiroute.section_type import SectionType
 
 
-class Section(Router):
+class Section(Router, metaclass=SectionType):
     """A group of routes nested in a client class, reached as client.<class name>.
 
     It uses its parent's base_url unless it sets one, and only the settings named in
