@@ -4,6 +4,8 @@ import subprocess
 from collections.abc import Iterable
 from pathlib import Path
 
+_BATCH = 500
+
 
 class SourceFormatter:
     """Runs ruff over generated files when it's installed: import sorting (`ruff check
@@ -19,13 +21,17 @@ class SourceFormatter:
         ruff = shutil.which("ruff")
         if ruff is None or not paths:
             return False
-        files = [str(path) for path in paths]
         options = ["--isolated", "--quiet", f"--line-length={line_length}"]
         sort = [ruff, "check", *options, *_isort_sections(first_party), "--select=I", "--fix"]
-        sort += ["--exit-zero", *files]
-        if subprocess.run(sort, check=False).returncode != 0:
-            return False
-        return subprocess.run([ruff, "format", *options, *files], check=False).returncode == 0
+        sort.append("--exit-zero")
+        # in batches: a package of thousands of files (Stripe's) overflows one command line
+        for start in range(0, len(paths), _BATCH):
+            files = [str(path) for path in paths[start : start + _BATCH]]
+            if subprocess.run([*sort, *files], check=False).returncode != 0:
+                return False
+            if subprocess.run([ruff, "format", *options, *files], check=False).returncode != 0:
+                return False
+        return True
 
 
 def _isort_sections(first_party: Iterable[str]) -> list[str]:
