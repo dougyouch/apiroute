@@ -54,7 +54,7 @@ class DictClientEmitter:
         """Only what the class uses, so generated files pass a linter untouched."""
         body = self._body_text()  # also tells the shadowing whether builtins is needed
         standard = []
-        if self._is_root and any(scheme.style == "basic" for scheme in self._definition.auth):
+        if self._writes_auth() and any(s.style == "basic" for s in self._definition.auth):
             standard.append("import base64")
         if self._shadowing.used:
             standard.append("import builtins")
@@ -114,7 +114,7 @@ class DictClientEmitter:
             out.line()
             self._settings(out)
             self._lazy_attributes(out)
-            if self._is_root and self._definition.auth and self._base_class is None:
+            if self._writes_auth() and self._definition.auth:
                 self._init(out)
             for operation in self._group.operations:
                 out.line()
@@ -130,8 +130,12 @@ class DictClientEmitter:
         if not self._is_root:
             # the client's auth, and its retry and timeout policy
             out.line('inherit = ("headers", "query_params", "retries", "timeout")')
-        if self._is_root and self._base_class is None:
+        if self._writes_auth():
             self._auth_settings(out)
+
+    def _writes_auth(self) -> bool:
+        """The spec's auth is written on the root client, unless a base class owns auth."""
+        return self._is_root and self._base_class is None
 
     def _has_deep_object_query(self) -> bool:
         return any(
