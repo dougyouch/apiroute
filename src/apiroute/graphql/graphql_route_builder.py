@@ -8,7 +8,6 @@ from apiroute.from_client import FROM_CLIENT
 from apiroute.graphql.graphql_body import GraphQLBody
 from apiroute.graphql.graphql_decoder import GraphQLDecoder
 from apiroute.graphql.graphql_document import GraphQLDocument
-from apiroute.graphql.graphql_item_converter import GraphQLItemConverter
 from apiroute.graphql.graphql_operation import GraphQLOperation
 from apiroute.graphql.graphql_paginator import GraphQLPaginator
 from apiroute.graphql.graphql_route_options import GraphQLRouteOptions
@@ -16,6 +15,7 @@ from apiroute.graphql.graphql_schema_check import check_against_schema
 from apiroute.graphql.graphql_schema_loader import load_schema
 from apiroute.graphql.graphql_syntax_check import check_syntax
 from apiroute.graphql.graphql_variable_binder import GraphQLVariableBinder
+from apiroute.item_converter import ItemConverter
 from apiroute.route_spec import RouteSpec
 
 ACCEPT = "application/graphql-response+json, application/json"
@@ -60,7 +60,7 @@ class GraphQLRouteBuilder:
         options = self._options
         if not options.paginate:
             return None
-        converter = GraphQLItemConverter(options.model, func)
+        converter = ItemConverter(options.model, func)
         return GraphQLPaginator(self._label(name), options.paginate, converter)
 
     def persisted_specs(self, spec: RouteSpec) -> dict[str, RouteSpec]:

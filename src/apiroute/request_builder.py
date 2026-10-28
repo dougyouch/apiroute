@@ -19,6 +19,8 @@ class RequestBuilder:
     with_options. A None header or query value at any level leaves it out. A query string in
     base_url itself is kept and sent first. A with_options
     body is shallow-merged over the route's body when both are dicts, and replaces it otherwise.
+    A with_options url replaces the base URL, path and query: only the client's own query
+    parameters (an API key) are added to it, when the URL doesn't carry them already.
     """
 
     def __init__(self, config: ClientConfig, root: Any, options: RequestOptions):
@@ -41,6 +43,8 @@ class RequestBuilder:
         )
 
     def _url(self, definition: RouteDefinition, resolve: PlaceholderResolver) -> str:
+        if self._options.url is not None:
+            return urlunsplit(urlsplit(self._options.url)._replace(query="", fragment=""))
         if self._config.base_url is None:
             raise ValueError(f"{definition.name}: no base_url is configured")
         path = definition.path.render(resolve, self._root.escape_path)
@@ -71,6 +75,8 @@ class RequestBuilder:
         values: Mapping[str, Any],
         resolve: PlaceholderResolver,
     ) -> list[tuple[str, str]]:
+        if self._options.url is not None:
+            return self._url_params(self._options.url)
         query = dict(self._dynamic(self._config.query_params))
         if definition.query is not None:
             query.update(definition.query.render(resolve))
@@ -80,6 +86,16 @@ class RequestBuilder:
             {name: value for name, value in query.items() if value is not None}
         )
         return self._base_url_params() + list(encoded)
+
+    def _url_params(self, url: str) -> list[tuple[str, str]]:
+        """A replacing URL's own query, after the client's parameters it doesn't carry."""
+        own = parse_qsl(urlsplit(url).query, keep_blank_values=True)
+        names = {name for name, _ in own}
+        query = self._dynamic(self._config.query_params)
+        client = self._base_url_params() + list(
+            self._encode_query({name: value for name, value in query.items() if value is not None})
+        )
+        return [(name, value) for name, value in client if name not in names] + own
 
     def _base_url_params(self) -> list[tuple[str, str]]:
         """A base_url's own query (a provider key such as ?api-key=...), sent first. httpx replaces

@@ -13,7 +13,8 @@ class RequestOptions:
 
     retries may be a Retries or an int, which replaces only the number of attempts.
     A None header value drops that header. A dict body is merged over the route's dict body
-    (shallow, a None value removes that key); any other body replaces it.
+    (shallow, a None value removes that key); any other body replaces it. url, an absolute URL,
+    replaces the base URL, path and query (a paginated route's next page).
     """
 
     headers: Mapping[str, Any] | None = None
@@ -22,6 +23,7 @@ class RequestOptions:
     timeout: float | None = None
     retries: Retries | int | None = None
     returns: str | None = None
+    url: str | None = None
 
     def __post_init__(self) -> None:
         if self.returns is not None and self.returns not in RETURN_MODES:
@@ -36,6 +38,7 @@ class RequestOptions:
             timeout=_pick(self.timeout, other.timeout),
             retries=_pick(self.retries, other.retries),
             returns=_pick(self.returns, other.returns),
+            url=_pick(self.url, other.url),
         )
 
 

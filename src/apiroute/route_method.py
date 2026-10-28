@@ -4,6 +4,7 @@ from collections.abc import Callable
 from typing import Any, Concatenate, Generic, ParamSpec, TypeVar, overload
 
 from apiroute.from_client import FROM_CLIENT
+from apiroute.pagination.rest_paginator import RestPaginator
 from apiroute.request_options import RequestOptions
 from apiroute.route_compiler import RouteCompiler
 from apiroute.route_definition import RouteDefinition
@@ -81,7 +82,27 @@ class RouteMethod(Generic[P, R]):
         return self.bind(instance, RequestOptions())
 
     def bind(self, router: Any, options: RequestOptions, is_async: bool = False) -> Callable:
-        """The route as a method of router; a coroutine function when is_async."""
+        """The route as a method of router; a coroutine function when is_async. A paginate=
+        route returns a Paginated (an AsyncPaginated when is_async) over every page's items."""
+        definition = self.definition
+        if definition.paginate is None:
+            return self._call(router, options, is_async)
+
+        def page_call(request: Any) -> Callable:
+            extra = RequestOptions(returns="response") if request is None else request.options()
+            return self._call(router, options.merged(extra), is_async)
+
+        paginator = RestPaginator(
+            definition.operation or definition.name,
+            definition.paginate,
+            definition.converter.convert,
+            router._request_config().base_url,
+            router._root.redact_url,
+        )
+        return paginator.wrap(page_call, is_async)
+
+    def _call(self, router: Any, options: RequestOptions, is_async: bool) -> Callable:
+        """The route as a method making one request."""
         definition = self.definition
         func = self._func
 

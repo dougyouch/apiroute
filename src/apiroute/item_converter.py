@@ -2,14 +2,14 @@ import inspect
 from collections.abc import Callable
 from typing import Any
 
-from apiroute.graphql.graphql_paginator import item_type
+from apiroute.item_type import item_type
 from apiroute.response_converter import converter_for
 
 
-class GraphQLItemConverter:
-    """Converts a paginated route's items: to model= when given, else to X from the method's
-    Iterator[X]-style return annotation. A string annotation naming something not defined yet
-    (`-> "Iterator[Issue]"` above `class Issue`) is resolved on first use."""
+class ItemConverter:
+    """Converts a paginated route's items, REST or GraphQL: to model= when given, else to X
+    from the method's Iterator[X]-style return annotation. A string annotation naming something
+    not defined yet (`-> "Iterator[Issue]"` above `class Issue`) is resolved on first use."""
 
     def __init__(self, model: Any, func: Callable):
         self._model = model

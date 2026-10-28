@@ -24,3 +24,9 @@ def test_merged_bodies_combine_and_keep_none_markers():
 def test_merged_non_dict_body_replaces():
     assert RequestOptions(body={"a": 1}).merged(RequestOptions(body=[1])).body == [1]
     assert RequestOptions(body={"a": 1}).merged(RequestOptions()).body == {"a": 1}
+
+
+def test_merged_url_overrides():
+    assert RequestOptions(url="https://a.test/1").merged(RequestOptions()).url == "https://a.test/1"
+    merged = RequestOptions(url="https://a.test/1").merged(RequestOptions(url="https://a.test/2"))
+    assert merged.url == "https://a.test/2"
