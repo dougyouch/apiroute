@@ -1,6 +1,7 @@
 import re
 
 from apiroute.codegen.api_definition import ApiDefinition, Group, Operation, Parameter
+from apiroute.codegen.builtin_shadowing import BuiltinShadowing
 from apiroute.codegen.generated_header import generated_header
 from apiroute.codegen.import_order import import_names
 from apiroute.codegen.model_placement import operation_models
@@ -26,6 +27,7 @@ class ModelsClientEmitter:
         self._definition = definition
         self._group = group
         self._version = version
+        self._shadowing = BuiltinShadowing(operation.name for operation in group.operations)
 
     def source(self) -> str:
         out = SourceWriter()
@@ -36,10 +38,11 @@ class ModelsClientEmitter:
         out.line()
         signatures = self._signatures_text()
         used = self._used_models()
+        self._class(SourceWriter())  # tells the shadowing whether builtins is needed
         typing_names = [n for n in ("Any", "Literal") if re.search(rf"\b{n}\b", signatures)]
         if used:
             typing_names.append("TYPE_CHECKING")
-        standard = []
+        standard = ["import builtins"] if self._shadowing.used else []
         if re.search(r"\bIterator\b", signatures):
             standard.append("from collections.abc import Iterator")
         if typing_names:
@@ -55,13 +58,16 @@ class ModelsClientEmitter:
             with out.indented():
                 out.line(f"from .models import {import_names(used)}")
         out.lines("", "")
+        self._class(out)
+        return out.text()
+
+    def _class(self, out: SourceWriter) -> None:
         out.line(f"class {models_class_name(self._group)}(TypedClient):")
         with out.indented():
             out.docstring(f"Typed versions of {self._group.class_name}'s routes.")
             for operation in self._group.operations:
                 out.line()
                 self._method(out, operation)
-        return out.text()
 
     def _signatures_text(self) -> str:
         texts = []
@@ -83,8 +89,8 @@ class ModelsClientEmitter:
         with out.indented():
             out.line("self,")
             for parameter in _signature(operation):
-                out.line(f"{parameter},")
-        out.line(f") -> {returned}:")
+                out.line(f"{self._shadowing.qualified(parameter)},")
+        out.line(f") -> {self._shadowing.qualified(returned)}:")
         with out.indented():
             if operation.summary:
                 out.docstring(operation.summary)

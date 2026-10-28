@@ -2,6 +2,7 @@ import re
 
 from apiroute.codegen.alias_inliner import AliasInliner
 from apiroute.codegen.api_definition import ApiDefinition, AuthScheme, Group, Operation, Parameter
+from apiroute.codegen.builtin_shadowing import BuiltinShadowing
 from apiroute.codegen.generated_header import generated_header
 from apiroute.codegen.import_order import import_names
 from apiroute.codegen.models_client_emitter import models_class_name
@@ -22,6 +23,7 @@ class DictClientEmitter:
         self._with_models = with_models
         self._version = version
         self._inliner = AliasInliner(definition)
+        self._shadowing = BuiltinShadowing(operation.name for operation in group.operations)
         self._base_class = _split_base_class(definition.base_class) if self._is_root else None
 
     def source(self) -> str:
@@ -50,10 +52,12 @@ class DictClientEmitter:
 
     def _imports(self, out: SourceWriter) -> None:
         """Only what the class uses, so generated files pass a linter untouched."""
-        body = self._body_text()
+        body = self._body_text()  # also tells the shadowing whether builtins is needed
         standard = []
         if self._is_root and any(scheme.style == "basic" for scheme in self._definition.auth):
             standard.append("import base64")
+        if self._shadowing.used:
+            standard.append("import builtins")
         if _mentions(body, "Iterator"):
             standard.append("from collections.abc import Iterator")
         typing_names = [n for n in ("Annotated", "Any", "Literal") if _mentions(body, n)]
@@ -175,8 +179,8 @@ class DictClientEmitter:
         with out.indented():
             out.line("self,")
             for parameter in _ordered(operation, self._inliner):
-                out.line(f"{parameter},")
-        out.line(f") -> {_return_type(operation)}:")
+                out.line(f"{self._shadowing.qualified(parameter)},")
+        out.line(f") -> {self._shadowing.qualified(_return_type(operation))}:")
         with out.indented():
             out.docstring(_doc(operation))
             # after a docstring too: pyright accepts a body ending in ... as a stub, and
