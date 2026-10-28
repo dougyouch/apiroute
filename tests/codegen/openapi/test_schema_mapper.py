@@ -13,6 +13,12 @@ DOCUMENT = {
                 },
             },
             "Color": {"type": "string", "enum": ["red", "green"]},
+            "NullableLicense": {
+                "type": "object",
+                "nullable": True,
+                "properties": {"key": {"type": "string"}},
+            },
+            "MaybeNumber": {"type": ["integer", "null"]},
         }
     }
 }
@@ -80,3 +86,17 @@ def test_plain_shapes_for_the_dict_layer(mapper):
     assert plain({"type": "array"}) == "list[Any]"
     assert plain({"type": "string"}) == "str"
     assert plain({"oneOf": []}) == "Any"
+
+
+@pytest.mark.parametrize(
+    ("ref", "expr"),
+    [
+        ("NullableLicense", "NullableLicense | None"),
+        ("MaybeNumber", "MaybeNumber | None"),
+        ("Color", "Color"),
+    ],
+)
+def test_a_reference_to_a_nullable_schema_may_be_none(mapper, ref, expr):
+    mapped = mapper[0].map({"$ref": f"#/components/schemas/{ref}"}, "Hint")
+    assert mapped.expr == expr and mapped.models == {ref}
+    assert ref in mapper[1]

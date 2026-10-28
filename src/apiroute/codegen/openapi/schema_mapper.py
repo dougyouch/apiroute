@@ -25,7 +25,7 @@ class SchemaMapper:
         if not isinstance(schema, dict) or not schema:
             return ANY
         if "$ref" in schema:
-            return self._ref(schema["$ref"], base)
+            return self._nullable_ref(schema, base)
         mapped = self._unnullable(schema, hint, base)
         return mapped.optional() if _is_nullable(schema) else mapped
 
@@ -68,6 +68,13 @@ class SchemaMapper:
         if kind == "object":
             return self._object(schema, hint, base)
         return TypeRef(_PRIMITIVES.get(kind, "Any"))
+
+    def _nullable_ref(self, schema: dict, base: str | None) -> TypeRef:
+        """A $ref's model, or None when the schema it names is nullable (as GitHub's
+        nullable-* components are), since the value may then be null wherever it's used."""
+        mapped = self._ref(schema["$ref"], base)
+        target = self._follow(schema, base)[0]
+        return mapped.optional() if isinstance(target, dict) and _is_nullable(target) else mapped
 
     def _ref(self, ref: str, base: str | None) -> TypeRef:
         target, location, ref_name = self._resolver.resolve(ref, base)
