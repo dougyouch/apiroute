@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.2.1](https://github.com/dougyouch/apiroute/compare/v2.2.0...v2.2.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* name built-in types explicitly when a generated method shadows them ([41649dc](https://github.com/dougyouch/apiroute/commit/41649dcee1f74f3369b57407b09b068b16fc6bd7))
+
 ## [2.2.0](https://github.com/dougyouch/apiroute/compare/v2.1.0...v2.2.0) (2026-10-27)
 
 
