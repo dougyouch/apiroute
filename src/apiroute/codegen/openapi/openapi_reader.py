@@ -150,11 +150,24 @@ class OpenApiReader:
         if media is None:
             return None
         schema = content[media].get("schema", {})
+        if self._holds_nothing(schema):
+            return None
         return RequestBody(
             type=self._mapper.map(schema, f"{hint}Request"),
             required=bool(request_body.get("required")),
             body_format=_FORMS.get(media, "json"),
             plain=self._mapper.plain(schema),
+        )
+
+    def _holds_nothing(self, schema: Any) -> bool:
+        """An object schema with no properties that allows no others, as Stripe gives most of
+        its GET and DELETE operations: a body argument for it could only ever be empty."""
+        schema = self._resolver.deref(schema) if isinstance(schema, dict) else schema
+        return (
+            isinstance(schema, dict)
+            and schema.get("additionalProperties") is False
+            and not schema.get("properties")
+            and not any(key in schema for key in ("allOf", "oneOf", "anyOf"))
         )
 
     def _response(self, operation: Operation, responses: dict, hint: str) -> None:

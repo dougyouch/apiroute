@@ -1,3 +1,5 @@
+import json
+
 from apiroute.codegen.openapi.openapi_reader import OpenApiReader
 from tests.codegen.conftest import FIXTURES
 
@@ -96,3 +98,34 @@ def test_content_type_accept_and_authorization_parameters_are_skipped(tmp_path):
     definition = OpenApiReader(str(tmp_path / "shop.yaml"), "ShopApi").read()
     list_pets = definition.groups[0].operations[0]
     assert [p.wire_name for p in list_pets.parameters] == ["limit", "status", "X-Request-Id"]
+
+
+def test_a_body_that_can_hold_nothing_is_no_body(tmp_path):
+    form = "application/x-www-form-urlencoded"
+    empty = {"type": "object", "properties": {}, "additionalProperties": False}
+    open_object = {"type": "object"}
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Forms", "version": "1"},
+        "paths": {
+            "/v1/customers": {
+                # Stripe's reads: an empty form schema that allows no properties
+                "get": _form_operation("GetCustomers", form, empty),
+                "post": _form_operation("PostCustomers", form, open_object),
+            },
+        },
+    }
+    path = tmp_path / "forms.json"
+    path.write_text(json.dumps(spec))
+    get, post = OpenApiReader(str(path), "FormsApi").read().root.operations
+    assert get.body is None
+    assert post.body is not None and post.body.body_format == "form"
+
+
+def _form_operation(operation_id, media, schema):
+    return {
+        "operationId": operation_id,
+        "requestBody": {"content": {media: {"schema": schema}}},
+        "responses": {"200": {"description": "ok"}},
+    }
+
