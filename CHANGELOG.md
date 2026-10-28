@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.0](https://github.com/dougyouch/apiroute/compare/v2.2.2...v2.3.0) (2026-10-28)
+
+
+### Features
+
+* --nullable-fields for specs that say never null when the API sends null ([733c8f0](https://github.com/dougyouch/apiroute/commit/733c8f04076857d7eafdfa0104b6f8e980321d0e))
+
 ## [2.2.2](https://github.com/dougyouch/apiroute/compare/v2.2.1...v2.2.2) (2026-10-28)
 
 

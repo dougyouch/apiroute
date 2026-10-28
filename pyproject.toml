@@ -1,6 +1,6 @@
 [project]
 name = "apiroute"
-version = "2.2.2"
+version = "2.3.0"
 description = "Declarative Python API clients for REST, GraphQL and SOAP on httpx: one decorator per call, with retries, async, typed models, test mocks and OpenAPI/WSDL code generation."
 readme = "README.md"
 license = "MIT"
