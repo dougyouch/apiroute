@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.3](https://github.com/dougyouch/apiroute/compare/v2.3.2...v2.3.3) (2026-10-28)
+
+### Other changes
+
+- ci: each release adds its commits to CHANGELOG.md (46b81c0)
+
 ## [2.3.2](https://github.com/dougyouch/apiroute/compare/v2.3.1...v2.3.2) (2026-10-28)
 
 ### Other changes
