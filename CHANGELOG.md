@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.6.0](https://github.com/dougyouch/apiroute/compare/v2.5.1...v2.6.0) (2026-10-28)
+
+### Features
+
+- feat: --open-enums lets model enums take values the spec doesn't list (c0da081)
+- feat: --operation-names keys operations by method and path too (4bd7f3d)
+
 ## [2.5.1](https://github.com/dougyouch/apiroute/compare/v2.5.0...v2.5.1) (2026-10-28)
 
 ### Other changes
