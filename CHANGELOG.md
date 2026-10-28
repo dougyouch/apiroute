@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.3.1](https://github.com/dougyouch/apiroute/compare/v2.3.0...v2.3.1) (2026-10-28)
+
+
+### Bug Fixes
+
+* Retry-After never shortens the backoff delay ([db22f38](https://github.com/dougyouch/apiroute/commit/db22f389fca5d0fa3cbcdd962c12e3d66e52ca06))
+
 ## [2.3.0](https://github.com/dougyouch/apiroute/compare/v2.2.2...v2.3.0) (2026-10-28)
 
 
