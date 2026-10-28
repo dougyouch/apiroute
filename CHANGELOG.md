@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.5.1](https://github.com/dougyouch/apiroute/compare/v2.5.0...v2.5.1) (2026-10-28)
+
+### Other changes
+
+- docs: archive the REST pagination OpenSpec change (088f1c1)
+
 ## [2.5.0](https://github.com/dougyouch/apiroute/compare/v2.4.2...v2.5.0) (2026-10-28)
 
 ### Features
