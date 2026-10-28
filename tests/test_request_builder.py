@@ -98,3 +98,16 @@ def test_options_body_is_sent_when_the_route_has_none():
         "get_user", RequestOptions(body={"a": 1}), id=1, expand=None, trace=None, page=None
     )
     assert spec.content == b'{"a": 1}'
+
+
+def test_options_url_replaces_the_base_url_path_and_query():
+    options = RequestOptions(url="https://x.test/v1/users/7?expand=all&page=2")
+    spec = build("get_user", options, id=1, expand="none", page=1)
+    assert spec.url == "https://x.test/v1/users/7"
+    assert spec.params == [("key", "k"), ("expand", "all"), ("page", "2")]
+    assert spec.headers["X-Token"] == "t1"
+
+
+def test_options_url_carrying_the_client_query_keeps_its_own_value():
+    spec = build("get_user", RequestOptions(url="https://x.test/v1/users?key=other"), id=1)
+    assert spec.params == [("key", "other")]

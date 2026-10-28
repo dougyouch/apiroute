@@ -3,7 +3,8 @@ import inspect
 
 import pytest
 
-from apiroute.graphql.graphql_paginator import GraphQLPaginator, item_type
+from apiroute.graphql.graphql_paginator import GraphQLPaginator
+from apiroute.item_type import item_type
 
 
 def connection(items, cursor=None, more=False, key="nodes"):

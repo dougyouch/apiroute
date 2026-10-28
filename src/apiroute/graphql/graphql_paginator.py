@@ -101,22 +101,3 @@ class GraphQLPaginator:
                 "paging would never end"
             )
         return cursor
-
-
-def item_type(annotation: Any) -> Any:
-    """X from Iterator[X], Iterable[X], AsyncIterator[X], Generator[X, ...] and the like; None
-    for any other annotation."""
-    import collections.abc
-    import typing
-
-    iterables = {
-        collections.abc.Iterator,
-        collections.abc.Iterable,
-        collections.abc.AsyncIterator,
-        collections.abc.AsyncIterable,
-        collections.abc.Generator,
-        collections.abc.AsyncGenerator,
-    }
-    origin = typing.get_origin(annotation)
-    args = typing.get_args(annotation)
-    return args[0] if origin in iterables and args else None

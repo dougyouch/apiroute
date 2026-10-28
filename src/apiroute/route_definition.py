@@ -44,6 +44,8 @@ class RouteDefinition:
     operation: str | None = None
     idempotent: bool = True
     idempotency_key: str | bool | None = None
+    # The pagination strategy; converter then converts each item rather than the response
+    paginate: Any = None
 
     @property
     def call_signature(self) -> inspect.Signature:

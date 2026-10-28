@@ -20,6 +20,7 @@ def route(
     operation: str | None = None,
     idempotent: bool | None = None,
     idempotency_key: str | bool | None = None,
+    paginate: Any = None,
 ) -> RouteDecorator:
     """Declares an endpoint, on a def or on its own:
 
@@ -44,6 +45,10 @@ def route(
     safe too, idempotent=False that it isn't. idempotency_key="Idempotency-Key" sends that
     header with one fresh key per call, the same on every retry, which makes retrying safe for
     APIs that honour it; False turns off the class's idempotency_key for this route.
+
+    paginate, a strategy from apiroute.pagination (ItemCursor(), NextUrl() ...), makes the
+    method return an iterator over the items of every page, requesting each page when
+    iteration reaches it; model=, or X from an Iterator[X] return annotation, converts items.
     """
     method, path = _split(method_and_path)
     path = current_prefix() + path
@@ -63,6 +68,7 @@ def route(
         operation=operation,
         idempotent=idempotent,
         idempotency_key=idempotency_key,
+        paginate=paginate,
     )
     return RouteDecorator(spec)
 

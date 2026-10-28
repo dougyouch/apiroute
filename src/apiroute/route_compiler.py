@@ -7,6 +7,7 @@ from apiroute.body_encoder import BODY_FORMATS
 from apiroute.deferred_converter import DeferredConverter
 from apiroute.from_response import FROM_RESPONSE
 from apiroute.http_method import infer_http_method, normalize_http_method
+from apiroute.item_converter import ItemConverter
 from apiroute.model_types import strip_annotated
 from apiroute.path_template import PathTemplate
 from apiroute.request_options import RETURN_MODES
@@ -54,6 +55,7 @@ class RouteCompiler:
         bindings, body_param, result_param = self._bind_arguments(
             signature, referenced | {stream_param}, has_body_template
         )
+        paginate = self._paginate(result_param)
         return RouteDefinition(
             name=self._name,
             http_method=self._http_method(),
@@ -77,6 +79,7 @@ class RouteCompiler:
             operation=self._spec.operation,
             idempotent=self._idempotent(),
             idempotency_key=self._idempotency_key(),
+            paginate=paginate,
         )
 
     def _signature(self) -> inspect.Signature:
@@ -182,7 +185,23 @@ class RouteCompiler:
             raise TypeError(f"stream={self._spec.stream!r} needs a {name!r} parameter")
         return name
 
+    def _paginate(self, result_param: str | None) -> Any:
+        strategy = self._spec.paginate
+        if strategy is None:
+            return None
+        if not all(callable(getattr(strategy, step, None)) for step in ("items", "next")):
+            raise TypeError("paginate= takes a strategy with items(page) and next(page)")
+        if self._spec.returns != "json" or self._spec.stream is not None:
+            raise ValueError("paginate= reads JSON pages; it can't take returns= or stream=")
+        if self._spec.decoder is not None:
+            raise ValueError("paginate= reads JSON pages; it can't take decoder=")
+        if result_param is not None:
+            raise TypeError("paginate= returns an iterator; it can't take a Result parameter")
+        return strategy
+
     def _converter(self, signature: inspect.Signature, result_param: str | None) -> Any:
+        if self._spec.paginate is not None:
+            return ItemConverter(self._spec.model, self._func)
         model = self._model(signature, result_param)
         if isinstance(model, _Unresolved):
             return DeferredConverter(model.annotation, getattr(self._func, "__globals__", {}))
