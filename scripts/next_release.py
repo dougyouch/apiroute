@@ -1,25 +1,32 @@
 """The release for HEAD, from the conventional commits since the last tag.
 
-    python scripts/next_release.py           # the version, e.g. 2.4.0
-    python scripts/next_release.py --notes   # the release notes, in Markdown
+    python scripts/next_release.py                          # the version, e.g. 2.4.0
+    python scripts/next_release.py --notes                  # the release notes, in Markdown
+    python scripts/next_release.py --changelog CHANGELOG.md # add the release to the changelog
 
 Since the last vX.Y.Z tag: a breaking change (`feat!:`, or a BREAKING CHANGE footer) bumps the
 major version, a `feat:` the minor, and anything else the patch, so every merge releases.
 When a tag already points at HEAD, its version is the answer, so a rerun repeats a release
-rather than making another. Standard library only: it runs before anything is installed.
+rather than making another. The release workflow's own `chore(release):` commits, which add
+each release to the changelog, are left out. Standard library only: it runs before anything
+is installed.
 """
 
 from __future__ import annotations
 
 import argparse
+import datetime
 import re
 import subprocess
 from dataclasses import dataclass
+from pathlib import Path
 
 TAG = re.compile(r"^v(\d+)\.(\d+)\.(\d+)$")
 SUBJECT = re.compile(r"^(?P<type>[a-z]+)(?:\([^)]*\))?(?P<breaking>!)?: ")
 SECTIONS = {"feat": "Features", "fix": "Fixes", "perf": "Fixes"}
 FIRST = (0, 1, 0)
+RELEASE_COMMIT = "chore(release): "
+GITHUB_REMOTE = re.compile(r"github\.com[:/](?P<repository>[^/]+/[^/]+?)(?:\.git)?$")
 
 
 @dataclass
@@ -59,7 +66,8 @@ def commits_since(tag: str | None) -> list[Commit]:
     revisions = f"{tag}..HEAD" if tag else "HEAD"
     log = git("log", "--format=%H%x1f%s%x1f%b%x1e", revisions)
     entries = [entry.lstrip("\n") for entry in log.split("\x1e")]
-    return [Commit(*entry.split("\x1f", 2)) for entry in entries if entry]
+    commits = [Commit(*entry.split("\x1f", 2)) for entry in entries if entry]
+    return [commit for commit in commits if not commit.subject.startswith(RELEASE_COMMIT)]
 
 
 def next_version(previous: tuple[int, int, int] | None, commits: list[Commit]) -> tuple:
@@ -86,9 +94,21 @@ def notes(commits: list[Commit]) -> str:
     )
 
 
+def add_to_changelog(path: Path, version: str, tag: str | None, commits: list[Commit]) -> None:
+    """Puts the release above the newest one in the changelog (or at its end, if it has none)."""
+    url = _repository_url()
+    title = f"[{version}]({url}/compare/{tag}...v{version})" if url and tag else version
+    entry = f"## {title} ({datetime.date.today().isoformat()})\n\n{notes(commits)}\n\n"
+    text = path.read_text()
+    newest = re.search(r"^## ", text, re.MULTILINE)
+    at = newest.start() if newest else len(text.rstrip("\n")) + 1
+    path.write_text(text[:at].rstrip("\n") + "\n\n" + entry + text[at:].lstrip("\n"))
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__.split("\n")[0])
     parser.add_argument("--notes", action="store_true", help="print the release notes")
+    parser.add_argument("--changelog", type=Path, help="add the release to this changelog")
     arguments = parser.parse_args()
     tag, previous = last_release()
     commits = commits_since(tag)
@@ -96,7 +116,17 @@ def main() -> None:
         print(notes(commits))
         return
     tagged = versions_at("HEAD")
-    print(".".join(map(str, tagged[-1] if tagged else next_version(previous, commits))))
+    version = ".".join(map(str, tagged[-1] if tagged else next_version(previous, commits)))
+    if arguments.changelog:
+        add_to_changelog(arguments.changelog, version, tag, commits)
+    print(version)
+
+
+def _repository_url() -> str | None:
+    """The GitHub address of the origin remote, for compare links."""
+    remote = git("remote", "get-url", "origin").strip() if git("remote").split() else ""
+    match = GITHUB_REMOTE.search(remote)
+    return f"https://github.com/{match['repository']}" if match else None
 
 
 def _version(tag: str) -> tuple[int, int, int]:

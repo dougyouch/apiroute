@@ -16,7 +16,7 @@ Guidance for AI coding agents (and people) working in this repository.
 | `src/apiroute/codegen/` | The generator behind the `apiroute` CLI (`cli.py`), with `openapi/`, `wsdl/` and `graphql/` front ends (readers that build an `ApiDefinition`) and the emitters that write client code |
 | `tests/` | One test module per runtime class; `tests/codegen/`, `tests/graphql/`, `tests/soap/`, `tests/testing/` and `tests/transports/` cover the generator, GraphQL, SOAP, the test helpers and transports |
 | `.github/workflows/` | `ci.yml` (pull requests, and before each release) and `release.yml` (every push to main: tag, PyPI, GitHub release) |
-| `scripts/next_release.py` | Works out each release's version and notes from the commits since the last tag |
+| `scripts/next_release.py` | Works out each release's version and notes from the commits since the last tag, and adds them to CHANGELOG.md |
 | `.agent/skills/apiroute-client.md` | Skill for creating and maintaining repositories of generated clients for any API |
 
 ## Rules
@@ -38,7 +38,8 @@ Guidance for AI coding agents (and people) working in this repository.
 - **Run the tests:** `uv sync`, then `uv run pytest`.
 - **Try the generator:** `uv run apiroute generate openapi <spec-url-or-file> -o <scratch-dir> --models`.
 - **Fix a generator bug found in a client repository:** reproduce it with a small spec in `tests/codegen/`, fix the emitter, and release; the client repository's Build workflow picks it up.
-- **Release:** merge to main. `release.yml` runs CI, tags `vX.Y.Z`, publishes to PyPI (trusted publishing, the `pypi` environment) and creates the GitHub release with notes from the commits. A failed release can be rerun: every step skips what's already done.
+- **Release:** merge to main. `release.yml` runs CI, then pushes a `chore(release): vX.Y.Z` commit that adds the release's commits to CHANGELOG.md, tags it, publishes to PyPI (trusted publishing, the `pypi` environment) and creates the GitHub release with the same notes. Pull before starting your next branch. A failed release can be rerun: every step skips what's already done.
+- **Don't edit CHANGELOG.md by hand;** the release commits write it.
 
 ## Skill
 

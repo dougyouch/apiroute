@@ -40,7 +40,7 @@ Then find each API's machine-readable description and its documentation page:
   specs/                        committed copies of the specs (written by --fetch; SDL for GraphQL)
   operations/<api>/             GraphQL operations, one folder per API (hand-written)
   scripts/generate.py           fetch specs, run apiroute generate, write the README table
-  scripts/next_release.py       each release's version and notes, from the commits (if releasing)
+  scripts/next_release.py       each release's version, notes and changelog entry, from the commits (if releasing)
   src/<package>/
     __init__.py                 package docstring (hand-written)
     auth.py                     auth base classes the generated clients extend (hand-written)
@@ -50,7 +50,7 @@ Then find each API's machine-readable description and its documentation page:
   .github/workflows/            ci.yml, build.yml, release.yml (if releasing)
   AGENT.md  CLAUDE.md           agent guidance; CLAUDE.md imports AGENT.md with "@AGENT.md"
   .agent/skills/apiroute-client.md   this skill (copy it into the new repository)
-  README.md  LICENSE  pyproject.toml  uv.lock      (release notes live on GitHub Releases)
+  README.md  CHANGELOG.md  LICENSE  pyproject.toml  uv.lock
 ```
 
 `apis.yaml`, one entry per API (shown with ebay-apiroute's values as an example):
@@ -165,7 +165,7 @@ Copy them from an existing client repository ([github-apiroute](https://github.c
      - otherwise `fix(codegen): regenerate clients with apiroute <version>` (a patch)
 
   It needs `permissions: contents: write`. If `main` is protected, give the workflow a bypass or have it open a PR instead. A GraphQL API whose introspection needs a token gets it from a repository secret, exposed to the fetch step as the environment variable `spec_headers` names.
-- **`release.yml`**, only if the user said yes to PyPI, releases every push to main; there's no release PR. It runs CI, then `scripts/next_release.py` works out the version from the conventional commits since the last `vX.Y.Z` tag (`feat!:` or a `BREAKING CHANGE:` footer: major, `feat:` minor, anything else patch) and the notes. It tags the commit, builds (hatch-vcs reads the version from the tag), publishes with `uv publish --trusted-publishing always` in the `pypi` environment, and creates the GitHub release with the notes and distributions. Each step skips what's already done (the tag, the PyPI version, the release), so rerunning a failed release finishes it, and a run on an already-tagged commit changes nothing. Besides `push` and `workflow_dispatch`, trigger it on `workflow_run` of Build: commits pushed with `GITHUB_TOKEN` don't trigger other workflows. Copy apiroute's or github-apiroute's `release.yml` and `scripts/next_release.py`.
+- **`release.yml`**, only if the user said yes to PyPI, releases every push to main; there's no release PR. It runs CI, then `scripts/next_release.py` works out the version from the conventional commits since the last `vX.Y.Z` tag (`feat!:` or a `BREAKING CHANGE:` footer: major, `feat:` minor, anything else patch) and the notes. It commits the notes to CHANGELOG.md as `chore(release): vX.Y.Z` (which the next release's notes leave out), tags that commit and pushes both at once, then builds (hatch-vcs reads the version from the tag), publishes with `uv publish --trusted-publishing always` in the `pypi` environment, and creates the GitHub release with the notes and distributions. Each step skips what's already done (the tag, the PyPI version, the release), so rerunning a failed release finishes it, and a run on an already-tagged commit changes nothing. A run whose commit is no longer main's newest leaves the release to the newer push, which includes it. The release commit is pushed with `GITHUB_TOKEN`, so it triggers nothing; `main` may forbid force pushes but must accept the workflow's fast-forward push. Besides `push` and `workflow_dispatch`, trigger it on `workflow_run` of Build: commits pushed with `GITHUB_TOKEN` don't trigger other workflows. Copy apiroute's or github-apiroute's `release.yml` and `scripts/next_release.py`.
 
 Each repository needs these GitHub and PyPI settings:
 
