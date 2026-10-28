@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.4.2](https://github.com/dougyouch/apiroute/compare/v2.4.1...v2.4.2) (2026-10-28)
+
+### Fixes
+
+- fix: a base class's client doesn't import base64 (95ba6ac)
+
 ## [2.4.1](https://github.com/dougyouch/apiroute/compare/v2.4.0...v2.4.1) (2026-10-28)
 
 ### Fixes
