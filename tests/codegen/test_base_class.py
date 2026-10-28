@@ -1,4 +1,5 @@
 import importlib
+import json
 import pathlib
 import sys
 import textwrap
@@ -125,3 +126,26 @@ def test_a_malformed_base_class_is_reported():
     definition.base_class = "not a path"
     with pytest.raises(ValueError, match="package.module:Class"):
         PackageEmitter(definition, with_models=False).files()
+
+
+BASIC_SPEC = {
+    "openapi": "3.0.0",
+    "info": {"title": "Basic", "version": "1"},
+    "servers": [{"url": "https://basic.test"}],
+    "paths": {
+        "/v1/balance": {
+            "get": {"operationId": "getBalance", "responses": {"200": {"description": "ok"}}}
+        }
+    },
+    "components": {"securitySchemes": {"basic": {"type": "http", "scheme": "basic"}}},
+}
+
+
+@pytest.mark.parametrize(("base_class", "imported"), [(None, True), ("myauth:ShopAuth", False)])
+def test_basic_auth_imports_base64_only_when_the_client_writes_auth(tmp_path, base_class, imported):
+    spec = tmp_path / "basic.json"
+    spec.write_text(json.dumps(BASIC_SPEC))
+    definition = OpenApiReader(str(spec), "BasicApi").read()
+    definition.base_class = base_class
+    files = PackageEmitter(definition, with_models=False).files()
+    assert ("import base64" in files["client.py"]) is imported
