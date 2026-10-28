@@ -306,3 +306,17 @@ def test_persisted_queries_only_apply_to_graphql(tmp_path, capsys):
     arguments = ["generate", "openapi", str(FIXTURES / "shop.yaml"), "-o", str(tmp_path / "x")]
     assert main([*arguments, "--persisted-queries"]) == 1
     assert "--persisted-queries only applies to graphql" in capsys.readouterr().err
+
+
+def _pet_model(tmp_path, *options):
+    out = tmp_path / "shop"
+    arguments = ["generate", "openapi", str(FIXTURES / "shop.yaml"), "-o", str(out), "--models"]
+    assert main([*arguments, "--no-format", *options]) == 0
+    return (out / "pets" / "models" / "schemas" / "owner.py").read_text()
+
+
+def test_nullable_fields_lets_every_model_field_be_null(tmp_path):
+    assert "    id: int\n" in _pet_model(tmp_path)
+    source = _pet_model(tmp_path, "--nullable-fields")
+    assert "    id: int | None\n" in source  # still required, but may be null
+    assert "    owner: Owner | None = None\n" in source
