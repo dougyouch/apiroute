@@ -50,6 +50,9 @@ def checked(tmp_path_factory) -> dict[str, list[tuple[int, str]]]:
     PackageEmitter(definition, with_models=True).write(work / "shop")
     plain = OpenApiReader(str(FIXTURES / "plain.yaml"), "PlainApi").read()  # a level without models
     PackageEmitter(plain, with_models=True).write(work / "plain")
+    # a section with a method named list, as GitHub's gists has
+    listing = OpenApiReader(str(FIXTURES / "listing.yaml"), "ListingApi").read()
+    PackageEmitter(listing, with_models=True).write(work / "listing")
     (work / "caller.py").write_text(
         "from typing import Any\n\n"
         "from typing_extensions import assert_type\n\n"
@@ -63,7 +66,7 @@ def checked(tmp_path_factory) -> dict[str, list[tuple[int, str]]]:
         "api.pets.models.list_pets()\n"
     )
     samples = [HERE / "well_typed.py", HERE / "badly_typed.py", work / "caller.py"]
-    return mypy(*samples, work / "shop", work / "plain", cwd=work)
+    return mypy(*samples, work / "shop", work / "plain", work / "listing", cwd=work)
 
 
 def test_well_typed_code_passes(checked):

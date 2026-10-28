@@ -1,0 +1,39 @@
+openapi: 3.0.1
+info:
+  title: Listing
+  version: "1"
+servers:
+  - url: https://listing.test
+tags:
+  - name: gists
+paths:
+  /gists:
+    get:
+      operationId: gists/list
+      tags: [gists]
+      parameters:
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Gists, like GitHub's gists.list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Gist"
+components:
+  schemas:
+    Gist:
+      type: object
+      required: [id]
+      properties:
+        id:
+          type: string
+        files:
+          type: array
+          items:
+            type: string
