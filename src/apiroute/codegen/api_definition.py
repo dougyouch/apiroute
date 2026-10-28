@@ -13,6 +13,7 @@ class Parameter:
     type: TypeRef
     required: bool
     description: str = ""
+    style: str = ""  # the spec's serialization style, e.g. "deepObject" for created[gt]=1
 
 
 @dataclass

@@ -137,6 +137,7 @@ class OpenApiReader:
                     type=self._mapper.map(schema, f"{hint}{pascal_case(wire_name)}"),
                     required=location == "path" or bool(parameter.get("required")),
                     description=parameter.get("description", ""),
+                    style=parameter.get("style", ""),
                 )
             )
         return parameters, path
