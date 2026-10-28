@@ -152,13 +152,14 @@ class DictClientEmitter:
             out.line("}")
 
     def _lazy_entries(self) -> list[tuple[str, str, str]]:
-        """(attribute, module, class) for each section (on the root) and the .models view."""
+        """(attribute, module, class) for each section directly below this level (a dotted
+        section, issuing.cards, sits below issuing) and the .models view."""
+        prefix = f"{self._group.name}." if not self._is_root else ""
         entries = []
-        if self._is_root:
-            entries += [
-                (group.name, f".{group.name}.client", group.class_name)
-                for group in self._definition.groups
-            ]
+        for group in self._definition.groups:
+            leaf = group.name[len(prefix) :]
+            if group.name.startswith(prefix) and leaf and "." not in leaf:
+                entries.append((leaf, f".{leaf}.client", group.class_name))
         if self._with_models:
             entries.append(("models", ".models.client", models_class_name(self._group)))
         return entries

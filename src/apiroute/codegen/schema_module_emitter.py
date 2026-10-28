@@ -5,6 +5,7 @@ from apiroute.codegen.generated_header import generated_header
 from apiroute.codegen.import_order import import_names
 from apiroute.codegen.model_modules import SchemaModule
 from apiroute.codegen.python_literals import py_str
+from apiroute.codegen.section_path import section_depth
 from apiroute.codegen.source_writer import SourceWriter
 
 # defer_build: a model's validator is built on first use, not at import
@@ -134,10 +135,11 @@ class SchemaModuleEmitter:
         return [f"from {path} import {import_names(by_module[path])}" for path in ordered]
 
     def _relative(self, target: SchemaModule) -> str:
-        """From <folder>/models/schemas/: a sibling, or a root module from a tag's folder."""
+        """From <folder>/models/schemas/: a sibling, or a root module from a section's folder
+        (up through schemas/, models/ and each of the section's folders)."""
         if target.folder == self._module.folder:
             return f".{target.name}"
-        return f"....models.schemas.{target.name}"
+        return "." * (section_depth(self._module.folder) + 3) + f"models.schemas.{target.name}"
 
     def _model_class(self, out: SourceWriter, model: Model) -> None:
         out.line(f"class {model.name}(BaseModel):")

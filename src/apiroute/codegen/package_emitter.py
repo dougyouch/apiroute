@@ -10,13 +10,15 @@ from apiroute.codegen.model_placement import ModelPlacement, operation_models
 from apiroute.codegen.models_client_emitter import ModelsClientEmitter
 from apiroute.codegen.models_index_emitter import ModelsIndexEmitter
 from apiroute.codegen.schema_module_emitter import SchemaModuleEmitter
+from apiroute.codegen.section_path import section_folder
 
 
 class PackageEmitter:
     """Writes the generated package:
 
         <out>/__init__.py, client.py              the root client (dicts)
-        <out>/<tag>/client.py                     one Section per tag (dicts)
+        <out>/<tag>/client.py                     one Section per tag (dicts); a dotted
+                                                  section (issuing.cards) nests folders
         <out>/[<tag>/]models/client.py           the .models view, when with_models
         <out>/[<tag>/]models/models.py           a lazy index of the level's models
         <out>/[<tag>/]models/schemas/*.py        one module per model (or cycle of models)
@@ -35,8 +37,9 @@ class PackageEmitter:
         """Relative path -> source."""
         files = {"__init__.py": self._init_source(), "client.py": self._client(self._root)}
         for group in self._definition.groups:
-            files[f"{group.name}/__init__.py"] = self._marker_only()
-            files[f"{group.name}/client.py"] = self._client(group)
+            folder = section_folder(group.name)
+            files[f"{folder}/__init__.py"] = self._marker_only()
+            files[f"{folder}/client.py"] = self._client(group)
         if self._with_models:
             files.update(self._models_files())
         return files
@@ -116,7 +119,7 @@ class PackageEmitter:
 
 
 def _models_folder(group_name: str) -> str:
-    return f"{group_name}/models" if group_name else "models"
+    return f"{section_folder(group_name)}/models" if group_name else "models"
 
 
 def _is_generated(path: Path) -> bool:

@@ -7,6 +7,7 @@ import httpx
 
 from apiroute.base_url_validator import validate_base_url
 from apiroute.codegen.nullable_fields import NullableFields
+from apiroute.codegen.operation_names import OperationNames
 from apiroute.codegen.package_emitter import PackageEmitter
 from apiroute.codegen.python_names import pascal_case
 from apiroute.codegen.source_formatter import SourceFormatter
@@ -24,6 +25,8 @@ def _generate(arguments: argparse.Namespace) -> int:
     client_name = arguments.client_name or f"{pascal_case(out_dir.name)}Api"
     try:
         definition = _reader(arguments, client_name).read()
+        if arguments.operation_names:
+            OperationNames.load(arguments.operation_names).apply(definition)
         for warning in definition.warnings:
             print(f"apiroute: warning: {warning}", file=sys.stderr)
         definition.base_class = arguments.base_class
@@ -110,6 +113,13 @@ def _parser() -> argparse.ArgumentParser:
         metavar="URL",
         help="the root client's base_url, overriding the spec's servers; needed for a spec read "
         "from a file whose server URL is relative (e.g. /api/v2)",
+    )
+    generate.add_argument(
+        "--operation-names",
+        metavar="FILE",
+        help="a JSON object of operation IDs to dotted names (customers.create, "
+        "issuing.cards.list): the last part is the method, the parts before it nested "
+        "sections; for a spec whose tags and operationIds make poor names",
     )
     generate.add_argument(
         "--nullable-fields",
