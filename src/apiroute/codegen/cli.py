@@ -9,6 +9,8 @@ from apiroute.base_url_validator import validate_base_url
 from apiroute.codegen.nullable_fields import NullableFields
 from apiroute.codegen.operation_names import OperationNames
 from apiroute.codegen.package_emitter import PackageEmitter
+from apiroute.codegen.pagination.all_pages_methods import AllPagesMethods
+from apiroute.codegen.pagination.pagination_rules import PaginationRules
 from apiroute.codegen.python_names import pascal_case
 from apiroute.codegen.source_formatter import SourceFormatter
 
@@ -23,10 +25,14 @@ def main(argv: list[str] | None = None) -> int:
 def _generate(arguments: argparse.Namespace) -> int:
     out_dir = Path(arguments.output)
     client_name = arguments.client_name or f"{pascal_case(out_dir.name)}Api"
+    rules = None
     try:
-        definition = _reader(arguments, client_name).read()
+        if arguments.pagination:
+            rules = PaginationRules.load(arguments.pagination)
+        definition = _reader(arguments, client_name, rules).read()
         if arguments.operation_names:
             OperationNames.load(arguments.operation_names).apply(definition)
+        AllPagesMethods().apply(definition)
         for warning in definition.warnings:
             print(f"apiroute: warning: {warning}", file=sys.stderr)
         definition.base_class = arguments.base_class
@@ -50,6 +56,8 @@ def _generate(arguments: argparse.Namespace) -> int:
     models = f", {len(definition.models)} models" if arguments.models else ""
     note = " (formatted with ruff)" if formatted else ""
     print(f"Wrote {len(written)} files to {out_dir}{note}: {operations} operations{models}")
+    for line in rules.report() if rules is not None else []:
+        print(f"  pagination {line}")
     return 0
 
 
@@ -122,6 +130,13 @@ def _parser() -> argparse.ArgumentParser:
         "sections; for a spec whose tags and operationIds make poor names",
     )
     generate.add_argument(
+        "--pagination",
+        metavar="FILE",
+        help="pagination rules (JSON, or YAML): which operations page and how; each one "
+        "matched gets a <name>_all method iterating every page's items (openapi only; "
+        "x-speakeasy-pagination is honoured without rules)",
+    )
+    generate.add_argument(
         "--nullable-fields",
         action="store_true",
         help="type every model field as accepting null, for a spec that leaves out nullable "
@@ -182,7 +197,9 @@ def _add_header_option(group, purpose: str) -> None:
     )
 
 
-def _reader(arguments: argparse.Namespace, client_name: str):
+def _reader(arguments: argparse.Namespace, client_name: str, rules: PaginationRules | None):
+    if arguments.format != "openapi" and rules is not None:
+        raise ValueError("--pagination only applies to openapi")
     if arguments.format == "graphql":
         return _graphql_reader(arguments, client_name)
     if arguments.operations is not None:
@@ -192,7 +209,7 @@ def _reader(arguments: argparse.Namespace, client_name: str):
     if arguments.format == "openapi":
         from apiroute.codegen.openapi.openapi_reader import OpenApiReader
 
-        return OpenApiReader(arguments.spec, client_name)
+        return OpenApiReader(arguments.spec, client_name, pagination=rules)
     from apiroute.codegen.wsdl.wsdl_reader import WsdlReader
 
     return WsdlReader(arguments.spec, client_name)

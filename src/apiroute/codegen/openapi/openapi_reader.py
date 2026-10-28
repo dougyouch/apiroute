@@ -9,10 +9,12 @@ from apiroute.codegen.api_definition import (
     Parameter,
     RequestBody,
 )
+from apiroute.codegen.openapi.openapi_pagination import OpenApiPagination
 from apiroute.codegen.openapi.ref_resolver import RefResolver
 from apiroute.codegen.openapi.schema_mapper import SchemaMapper
 from apiroute.codegen.openapi.spec_loader import SpecLoader
 from apiroute.codegen.openapi.swagger2_converter import Swagger2Converter
+from apiroute.codegen.pagination.pagination_rules import PaginationRules
 from apiroute.codegen.plain_text import plain_text
 from apiroute.codegen.python_names import pascal_case, snake_case, unique
 from apiroute.codegen.type_ref import ANY
@@ -27,12 +29,21 @@ _FORMS = {"application/x-www-form-urlencoded": "form", "multipart/form-data": "m
 
 class OpenApiReader:
     """Reads an OpenAPI 3.x or Swagger 2.0 spec into an ApiDefinition: one group per tag
-    (an operation's first tag), untagged operations at the root."""
+    (an operation's first tag), untagged operations at the root. An operation that pages, by
+    the first of the pagination rules to match it or by its x-speakeasy-pagination, gets
+    all_pages set."""
 
-    def __init__(self, location: str, client_name: str, loader: SpecLoader | None = None):
+    def __init__(
+        self,
+        location: str,
+        client_name: str,
+        loader: SpecLoader | None = None,
+        pagination: PaginationRules | None = None,
+    ):
         self._location = location
         self._client_name = client_name
         self._loader = loader or SpecLoader()
+        self._pagination_rules = pagination
 
     def read(self) -> ApiDefinition:
         document = self._loader.load(self._location)
@@ -48,6 +59,13 @@ class OpenApiReader:
             root=Group("", self._client_name),
         )
         self._mapper = SchemaMapper(self._resolver, definition.models)
+        self._pagination = OpenApiPagination(
+            self._resolver,
+            self._mapper,
+            definition.models,
+            self._pagination_rules,
+            definition.warnings,
+        )
         self._groups: dict[str, Group] = {}
         self._group_names: set[str] = set()
         self._tag_descriptions = {  # tag -> plain-text description
@@ -59,6 +77,8 @@ class OpenApiReader:
         for name in document.get("components", {}).get("schemas", {}):
             self._mapper.register_named(name, f"#/components/schemas/{_escape(name)}")
         definition.auth = _auth(document.get("components", {}).get("securitySchemes", {}))
+        if self._pagination_rules is not None:
+            definition.warnings += self._pagination_rules.warnings()
         return definition
 
     def _source_name(self) -> str:
@@ -101,7 +121,9 @@ class OpenApiReader:
             deprecated=bool(operation.get("deprecated")),
             operation_id=operation.get("operationId", ""),
         )
-        self._response(result, operation.get("responses", {}), hint)
+        responses = operation.get("responses", {})
+        self._response(result, responses, hint)
+        result.all_pages = self._pagination.read(result, operation, self._json_schema(responses))
         return result
 
     def _operation_name(self, group: Group, method: str, path: str, operation: dict) -> str:
@@ -190,6 +212,17 @@ class OpenApiReader:
         operation.response_plain = self._mapper.plain(schema)
         if operation.response == ANY:
             operation.response = None
+
+    def _json_schema(self, responses: dict) -> Any:
+        """The success response's JSON schema; None when it has no JSON body."""
+        response = _success(responses)[1]
+        if response is None:
+            return None
+        content = self._resolver.deref(response).get("content", {})
+        media = _pick_media(content)
+        if media is None or media in _FORMS or not ("json" in media or media == "*/*"):
+            return None
+        return content[media].get("schema")
 
 
 def _is_managed_header(name: str) -> bool:

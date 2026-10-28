@@ -320,3 +320,21 @@ def test_nullable_fields_lets_every_model_field_be_null(tmp_path):
     source = _pet_model(tmp_path, "--nullable-fields")
     assert "    id: int | None\n" in source  # still required, but may be null
     assert "    owner: Owner | None = None\n" in source
+
+
+def test_pagination_rules_add_all_methods_and_report_their_matches(tmp_path, capsys):
+    rules = FIXTURES / "paging.rules.yaml"
+    out = tmp_path / "paging"
+    arguments = [str(FIXTURES / "paging.yaml"), "-o", str(out), "--pagination", str(rules)]
+    assert main(["generate", "openapi", *arguments, "--no-format"]) == 0
+    printed = capsys.readouterr()
+    assert f"  pagination {rules}: rule 1 (Stripe lists): 1 operation\n" in printed.out
+    assert "ListFeed: x-speakeasy-pagination" in printed.err
+    assert "def get_customers_all(" in (out / "customers" / "client.py").read_text()
+
+
+def test_pagination_only_applies_to_openapi(tmp_path, capsys):
+    rules = str(FIXTURES / "paging.rules.yaml")
+    wsdl = [str(FIXTURES / "weather.wsdl"), "-o", str(tmp_path / "w"), "--pagination", rules]
+    assert main(["generate", "wsdl", *wsdl]) == 1
+    assert "--pagination only applies to openapi" in capsys.readouterr().err

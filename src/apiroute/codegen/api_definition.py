@@ -1,5 +1,7 @@
 from dataclasses import dataclass, field
+from typing import Any
 
+from apiroute.codegen.python_literals import py_value
 from apiroute.codegen.type_ref import TypeRef
 
 
@@ -52,6 +54,22 @@ class GraphQLOperationSpec:
 
 
 @dataclass
+class RestPagination:
+    """How a REST operation's <name>_all method pages: a strategy class of apiroute.pagination
+    and the arguments it's made with, and the type of the items it yields."""
+
+    strategy: str  # e.g. "ItemCursor"
+    arguments: dict[str, Any]
+    item: TypeRef | None  # the model type of an item; None when it's Any
+    item_plain: str = "Any"  # the dict layer's item type
+
+    def source(self) -> str:
+        """The strategy as a constructor call, e.g. ItemCursor(items="data")."""
+        arguments = ", ".join(f"{name}={py_value(v)}" for name, v in self.arguments.items())
+        return f"{self.strategy}({arguments})"
+
+
+@dataclass
 class Operation:
     """One endpoint, as both layers generate it."""
 
@@ -69,6 +87,10 @@ class Operation:
     soap: SoapOperation | None = None
     graphql: GraphQLOperationSpec | None = None
     operation_id: str = ""  # the spec's name for it: an operationId or a WSDL operation
+    # set by the reader on an operation that also gets a <name>_all method paging with it
+    all_pages: RestPagination | None = None
+    # set on that _all method: it iterates every page's items, and response is the item type
+    paginate: RestPagination | None = None
 
 
 @dataclass

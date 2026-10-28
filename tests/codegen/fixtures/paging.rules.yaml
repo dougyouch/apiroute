@@ -1,0 +1,10 @@
+- name: Stripe lists
+  has_parameter: [starting_after]
+  response: {has: [data, has_more]}
+  paginate: {type: item_cursor}
+- name: GitHub lists
+  response: array
+  has_parameter: [page]
+  paginate: {type: next_url}
+- operations: [Search*]
+  paginate: {type: offset, total: total, items: hits}

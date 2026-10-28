@@ -75,6 +75,11 @@ class DictClientEmitter:
         elif self._base_class is None:
             names.append("Client")
         out.line(f"from apiroute import {import_names(names)}")
+        strategies = sorted(
+            {o.paginate.strategy for o in self._group.operations if o.paginate is not None}
+        )
+        if strategies:
+            out.line(f"from apiroute.pagination import {import_names(strategies)}")
         soap = [n for n in ("SoapBody", "SoapDecoder") if _mentions(body, n)]
         if soap:
             out.line(f"from apiroute.soap import {import_names(soap)}")
@@ -219,6 +224,8 @@ def _route_arguments(operation: Operation) -> list[str]:
         arguments.append(f"body_format={py_str(operation.body.body_format)}")
     if operation.headers:
         arguments.append(f"headers={py_value(operation.headers)}")
+    if operation.paginate is not None:
+        arguments.append(f"paginate={operation.paginate.source()}")
     return arguments
 
 
@@ -308,6 +315,9 @@ def _return_type(operation: Operation) -> str:
 
 def _doc(operation: Operation) -> str:
     doc = operation.summary
+    if operation.paginate is not None:
+        paging = "Iterates the items of every page, requesting each page as iteration reaches it."
+        doc = f"{doc}\n\n{paging}" if doc else paging
     if operation.deprecated:
         doc = f"{doc}\n\nDeprecated." if doc else "Deprecated."
     return doc
