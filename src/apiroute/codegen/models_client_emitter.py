@@ -130,13 +130,15 @@ def _forwarded(operation: Operation) -> list[str]:
 
 def _returned(operation: Operation) -> str:
     if operation.response is None:
-        return _plain_return(operation)
+        return "Iterator[Any]" if _is_paginated(operation) else _plain_return(operation)
     if _is_paginated(operation):
         return f"Iterator[{operation.response.expr}]"
     return operation.response.expr
 
 
 def _is_paginated(operation: Operation) -> bool:
+    if operation.paginate is not None:
+        return True
     return operation.graphql is not None and operation.graphql.paginate is not None
 
 

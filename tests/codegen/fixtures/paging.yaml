@@ -1,0 +1,151 @@
+openapi: 3.0.3
+info:
+  title: Paging API
+servers:
+  - url: https://api.paging.test
+paths:
+  /v1/customers:
+    get:
+      operationId: GetCustomers
+      tags: [customers]
+      summary: List customers
+      parameters:
+        - {name: limit, in: query, schema: {type: integer}}
+        - {name: starting_after, in: query, schema: {type: string}}
+        - {name: email, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: A page of customers
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [data, has_more]
+                properties:
+                  object: {type: string}
+                  data: {type: array, items: {$ref: "#/components/schemas/Customer"}}
+                  has_more: {type: boolean}
+    post:
+      operationId: PostCustomers
+      tags: [customers]
+      parameters:
+        - {name: starting_after, in: query, schema: {type: string}}
+      responses:
+        "200":
+          description: The customer
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Customer"}
+  /v1/customers/{id}:
+    get:
+      operationId: GetCustomer
+      tags: [customers]
+      parameters:
+        - {name: id, in: path, required: true, schema: {type: string}}
+      responses:
+        "200":
+          description: The customer
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/Customer"}
+  /repos/{owner}/{repo}/issues:
+    get:
+      operationId: issues/list-for-repo
+      tags: [issues]
+      parameters:
+        - {name: owner, in: path, required: true, schema: {type: string}}
+        - {name: repo, in: path, required: true, schema: {type: string}}
+        - {name: per_page, in: query, schema: {type: integer}}
+        - {name: page, in: query, schema: {type: integer}}
+      responses:
+        "200":
+          description: Issues
+          content:
+            application/json:
+              schema: {$ref: "#/components/schemas/IssueList"}
+  /search:
+    get:
+      operationId: SearchHits
+      tags: [search]
+      parameters:
+        - {name: q, in: query, required: true, schema: {type: string}}
+        - {name: offset, in: query, schema: {type: integer}}
+        - {name: limit, in: query, schema: {type: integer}}
+      responses:
+        "200":
+          description: Hits
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total: {type: integer}
+                  hits:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        name: {type: string}
+  /events:
+    get:
+      operationId: ListEvents
+      tags: [events]
+      parameters:
+        - {name: offset, in: query, schema: {type: integer}}
+        - {name: limit, in: query, schema: {type: integer}}
+      x-speakeasy-pagination:
+        type: offsetLimit
+        inputs:
+          - {name: offset, in: parameters, type: offset}
+          - {name: limit, in: parameters, type: limit}
+        outputs:
+          results: $.data.items
+      responses:
+        "200":
+          description: Events
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      items: {type: array, items: {$ref: "#/components/schemas/Event"}}
+  /feed:
+    get:
+      operationId: ListFeed
+      tags: [events]
+      x-speakeasy-pagination:
+        type: offsetLimit
+        inputs:
+          - {name: offset, in: parameters, type: offset}
+        outputs:
+          results: $.data[*]
+      responses:
+        "200":
+          description: Feed
+          content:
+            application/json:
+              schema: {type: array, items: {type: string}}
+components:
+  schemas:
+    Customer:
+      type: object
+      required: [id]
+      properties:
+        id: {type: string}
+        email: {type: string}
+    Issue:
+      type: object
+      required: [number]
+      properties:
+        number: {type: integer}
+        title: {type: string}
+    IssueList:
+      type: array
+      items: {$ref: "#/components/schemas/Issue"}
+    Event:
+      type: object
+      properties:
+        kind: {type: string}

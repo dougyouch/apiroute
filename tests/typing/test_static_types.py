@@ -9,6 +9,8 @@ import pytest
 
 from apiroute.codegen.openapi.openapi_reader import OpenApiReader
 from apiroute.codegen.package_emitter import PackageEmitter
+from apiroute.codegen.pagination.all_pages_methods import AllPagesMethods
+from apiroute.codegen.pagination.pagination_rules import PaginationRules
 
 pytest.importorskip("mypy")
 pytest.importorskip("pydantic")  # the generated typed layer's models
@@ -53,6 +55,11 @@ def checked(tmp_path_factory) -> dict[str, list[tuple[int, str]]]:
     # a section with a method named list, as GitHub's gists has
     listing = OpenApiReader(str(FIXTURES / "listing.yaml"), "ListingApi").read()
     PackageEmitter(listing, with_models=True).write(work / "listing")
+    # paginated _all methods, in both layers
+    rules = PaginationRules.load(str(FIXTURES / "paging.rules.yaml"))
+    paging = OpenApiReader(str(FIXTURES / "paging.yaml"), "PagingApi", pagination=rules).read()
+    AllPagesMethods().apply(paging)
+    PackageEmitter(paging, with_models=True).write(work / "paging")
     (work / "caller.py").write_text(
         "from typing import Any\n\n"
         "from typing_extensions import assert_type\n\n"
@@ -64,9 +71,18 @@ def checked(tmp_path_factory) -> dict[str, list[tuple[int, str]]]:
         "assert_type(api.pets.get_pet(1), dict[str, Any])\n"
         "api.pets.get_pet('1')\n"
         "api.pets.models.list_pets()\n"
+        "from collections.abc import Iterator\n"
+        "from paging import PagingApi\n"
+        "from paging.customers.models.models import Customer\n"
+        "paging = PagingApi()\n"
+        "assert_type(paging.customers.models.get_customers_all(), Iterator[Customer])\n"
+        "assert_type(paging.customers.get_customers_all(), Iterator[dict[str, Any]])\n"
+        "for customer in paging.customers.models.get_customers_all(limit=2):\n"
+        "    assert_type(customer.id, str)\n"
     )
     samples = [HERE / "well_typed.py", HERE / "badly_typed.py", work / "caller.py"]
-    return mypy(*samples, work / "shop", work / "plain", work / "listing", cwd=work)
+    packages = [work / name for name in ("shop", "plain", "listing", "paging")]
+    return mypy(*samples, *packages, cwd=work)
 
 
 def test_well_typed_code_passes(checked):
