@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.4.0](https://github.com/dougyouch/apiroute/compare/v2.3.3...v2.4.0) (2026-10-28)
+
+### Features
+
+- feat: --operation-names renames operations into nested sections (9e1ffff)
+- feat: deepObject query parameters are sent with bracketed names (eb1518e)
+
+### Fixes
+
+- fix: run ruff over generated files in batches (e13f298)
+- fix: a request body that can hold nothing is no body argument (db2611b)
+
 ## [2.3.3](https://github.com/dougyouch/apiroute/compare/v2.3.2...v2.3.3) (2026-10-28)
 
 ### Other changes
