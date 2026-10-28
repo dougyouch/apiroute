@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.5.0](https://github.com/dougyouch/apiroute/compare/v2.4.2...v2.5.0) (2026-10-28)
+
+### Features
+
+- feat: generated clients gain paginated _all methods (0649b87)
+- feat: REST routes iterate every page with paginate= (a758077)
+
+### Other changes
+
+- docs: REST pagination in the README and the client skill (3113176)
+- docs: OpenSpec change for REST pagination (14fced0)
+
 ## [2.4.2](https://github.com/dougyouch/apiroute/compare/v2.4.1...v2.4.2) (2026-10-28)
 
 ### Fixes
