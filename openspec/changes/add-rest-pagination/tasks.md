@@ -31,19 +31,19 @@
 
 ## 5. Codegen
 
-- [ ] 5.1 `Operation.pagination` in the API definition (strategy type, arguments, item type)
-- [ ] 5.2 Rules loader (`--pagination FILE`, JSON or YAML): rule matching by operation ID glob, method, parameters and response shape; first match wins; per-rule match counts and warnings; errors for unknown types or arguments
-- [ ] 5.3 `x-speakeasy-pagination` reader for `offsetLimit`, `cursor` and `url`, with warnings for anything else
-- [ ] 5.4 Item type resolution from the `items` path (array item schema, or the response's own array), with an error when the path isn't an array
-- [ ] 5.5 Dict emitter: `<name>_all` route with the same parameters, `paginate=<Strategy>(...)`, `Iterator[dict[str, Any]]`, and the `apiroute.pagination` import only when used; a clash with an existing name is an error
-- [ ] 5.6 Typed emitter: `<name>_all` through `_paginate` returning `Iterator[<item model>]`
-- [ ] 5.7 Codegen tests: a fixture spec with Stripe-, GitHub- and offset-style operations and one with `x-speakeasy-pagination`; generated packages paginate over a mock transport; output passes ruff and the mypy typing test; existing fixtures' output is unchanged
+- [x] 5.1 `Operation.pagination` in the API definition (strategy type, arguments, item type)
+- [x] 5.2 Rules loader (`--pagination FILE`, JSON or YAML): rule matching by operation ID glob, method, parameters and response shape; first match wins; per-rule match counts and warnings; errors for unknown types or arguments
+- [x] 5.3 `x-speakeasy-pagination` reader for `offsetLimit`, `cursor` and `url`, with warnings for anything else
+- [x] 5.4 Item type resolution from the `items` path (array item schema, or the response's own array), with an error when the path isn't an array
+- [x] 5.5 Dict emitter: `<name>_all` route with the same parameters, `paginate=<Strategy>(...)`, `Iterator[dict[str, Any]]`, and the `apiroute.pagination` import only when used; a clash with an existing name is an error
+- [x] 5.6 Typed emitter: `<name>_all` through `_paginate` returning `Iterator[<item model>]`
+- [x] 5.7 Codegen tests: a fixture spec with Stripe-, GitHub- and offset-style operations and one with `x-speakeasy-pagination`; generated packages paginate over a mock transport; output passes ruff and the mypy typing test; existing fixtures' output is unchanged
 
 ## 6. Docs and release
 
-- [ ] 6.1 README: a REST pagination section (strategies, `.pages()`, async, `islice` for caps, the stop rules and their caveats, custom strategies) and the `--pagination` rules in the codegen notes
-- [ ] 6.2 Client-repository skill: a `pagination:` entry in `apis.yaml` and how `generate.py` passes it
-- [ ] 6.3 Full suite, the lowest-dependencies run, ruff; then open the PR (`feat:`)
+- [x] 6.1 README: a REST pagination section (strategies, `.pages()`, async, `islice` for caps, the stop rules and their caveats, custom strategies) and the `--pagination` rules in the codegen notes
+- [x] 6.2 Client-repository skill: a `pagination:` entry in `apis.yaml` and how `generate.py` passes it
+- [x] 6.3 Full suite, the lowest-dependencies run, ruff; then open the PR (`feat:`)
 
 ## 7. Proving it on real APIs (after release, in the client repositories)
 

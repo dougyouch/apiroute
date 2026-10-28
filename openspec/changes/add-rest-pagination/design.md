@@ -104,7 +104,7 @@ The suffix is fixed in this change. If a spec already has a method by that name,
 - `has_parameter`: parameter names;
 - `response`: `"array"` or `{"has": [property names]}`.
 
-It gives the strategy: `type` (`cursor`, `item_cursor`, `next_url`, `page`, `offset`) and the strategy's arguments, `items` included. When `items` names a response property, the item type is that array's item schema. When it's omitted, the response must be an array (its item schema), or have exactly one array property, which is used.
+It gives the strategy: `type` (`cursor`, `item_cursor`, `next_url`, `page`, `offset`) and the strategy's arguments, `items` included. When `items` names a response property, the item type is that array's item schema. When it's omitted, the strategy's default applies (`data` for `item_cursor`, the body itself for the others).
 
 Without a rule, an operation with `x-speakeasy-pagination` is mapped:
 - `offsetLimit` becomes `Offset`, or `PageNumber` when `inputs` name a page;
