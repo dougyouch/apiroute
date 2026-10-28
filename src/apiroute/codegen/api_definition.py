@@ -87,6 +87,7 @@ class Operation:
     soap: SoapOperation | None = None
     graphql: GraphQLOperationSpec | None = None
     operation_id: str = ""  # the spec's name for it: an operationId or a WSDL operation
+    spec_route: str = ""  # "GET /pets/{pet-id}": the method and path as the spec writes them
     # set by the reader on an operation that also gets a <name>_all method paging with it
     all_pages: RestPagination | None = None
     # set on that _all method: it iterates every page's items, and response is the item type

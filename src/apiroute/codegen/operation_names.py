@@ -12,6 +12,9 @@ class OperationNames:
 
         {"PostCustomers": "customers.create", "GetIssuingCards": "issuing.cards.list"}
 
+    An operation can also be keyed by its method and path as the spec writes them
+    ("GET /api/data/metar"), which names operations that have no operationId.
+
     The last part is the method; the parts before it are sections, nested, created as needed.
     A name without a dot puts the method on the root client. Operations the map doesn't name
     stay where the spec put them, and names in the map that match no operation are warnings.
@@ -34,18 +37,17 @@ class OperationNames:
         found = set()
         for group in list(groups.values()):
             for operation in list(group.operations):
-                dotted = self._names.get(operation.operation_id)
-                if dotted is None:
+                key = self._key(operation)
+                if key is None:
                     continue
-                found.add(operation.operation_id)
+                found.add(key)
+                dotted = self._names[key]
                 section, method = _split(dotted)
                 group.operations.remove(operation)
                 operation.name = method
                 _group(groups, section).operations.append(operation)
         definition.warnings += [
-            f"--operation-names: no operation {operation_id!r}"
-            for operation_id in self._names
-            if operation_id not in found
+            f"--operation-names: no operation {key!r}" for key in self._names if key not in found
         ]
         _check(groups)
         definition.groups = [
@@ -53,6 +55,13 @@ class OperationNames:
             for name, group in sorted(groups.items())
             if name and (group.operations or _has_children(groups, name))
         ]
+
+    def _key(self, operation: Operation) -> str | None:
+        """The map's key for operation: its operation ID, or else its method and path."""
+        for key in (operation.operation_id, operation.spec_route):
+            if key and key in self._names:
+                return key
+        return None
 
 
 def _split(dotted: str) -> tuple[str, str]:
@@ -83,16 +92,19 @@ def _check(groups: dict[str, Group]) -> None:
             where = f"{name}.{operation.name}" if name else operation.name
             if operation.name in seen:
                 problems.append(
-                    f"{where}: both {seen[operation.name].operation_id} "
-                    f"and {operation.operation_id}"
+                    f"{where}: both {_spec_name(seen[operation.name])} and {_spec_name(operation)}"
                 )
             elif operation.name in children:
-                problems.append(f"{where}: {operation.operation_id} has a section's name")
+                problems.append(f"{where}: {_spec_name(operation)} has a section's name")
             elif operation.name in RESERVED:
-                problems.append(f"{where}: {operation.operation_id} has a reserved name")
+                problems.append(f"{where}: {_spec_name(operation)} has a reserved name")
             seen[operation.name] = operation
     if problems:
         raise ValueError("--operation-names: " + "; ".join(problems))
+
+
+def _spec_name(operation: Operation) -> str:
+    return operation.operation_id or operation.spec_route
 
 
 def _parent(name: str) -> str | None:

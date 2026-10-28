@@ -110,6 +110,7 @@ class OpenApiReader:
         taken = {o.name for o in group.operations}
         name = unique(self._operation_name(group, method, path, operation), taken)
         hint = pascal_case(name if not group.name else f"{group.name}_{name}")
+        spec_path = path
         parameters, path = self._parameters([*shared, *operation.get("parameters", [])], path, hint)
         result = Operation(
             name=name,
@@ -120,6 +121,7 @@ class OpenApiReader:
             body=self._body(operation.get("requestBody"), hint),
             deprecated=bool(operation.get("deprecated")),
             operation_id=operation.get("operationId", ""),
+            spec_route=f"{method.upper()} {spec_path}",
         )
         responses = operation.get("responses", {})
         self._response(result, responses, hint)

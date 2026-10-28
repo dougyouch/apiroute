@@ -78,6 +78,38 @@ def test_clashing_names_are_errors(names, problem):
         named(names)
 
 
+def test_operations_can_be_keyed_by_method_and_spec_path():
+    definition = named({"DELETE /pets/{pet-id}": "pets.remove", "GET /status": "health.ping"})
+    assert methods(definition)["pets"][-1] == "remove"
+    assert methods(definition)["health"] == ["ping"]
+    assert definition.warnings == []
+
+
+def test_operations_without_an_operation_id_can_be_named(tmp_path):
+    spec = tmp_path / "api.yaml"
+    spec.write_text(
+        "openapi: 3.0.0\n"
+        "info: {title: Weather, version: '1'}\n"
+        "paths:\n"
+        "  /api/data/metar:\n"
+        "    get:\n"
+        "      tags: [Weather Data]\n"
+        "      responses: {'200': {description: ok}}\n"
+        "  /api/data/taf:\n"
+        "    get:\n"
+        "      tags: [Weather Data]\n"
+        "      responses: {'200': {description: ok}}\n"
+    )
+    definition = OpenApiReader(str(spec), "WeatherApi").read()
+    assert methods(definition)["weather_data"] == ["get_api_data_metar", "get_api_data_taf"]
+    names = {"GET /api/data/metar": "metars.get", "GET /api/data/taf": "metars.get"}
+    with pytest.raises(ValueError, match="both GET /api/data/metar and GET /api/data/taf"):
+        OperationNames(names).apply(definition)
+    definition = OpenApiReader(str(spec), "WeatherApi").read()
+    OperationNames({"GET /api/data/metar": "metar", "GET /api/data/taf": "taf"}).apply(definition)
+    assert methods(definition) == {"": ["metar", "taf"]}
+
+
 def test_names_become_python_names():
     definition = named({"listPets": "Pet-Shop.listAll", "getStatus": "class"})
     assert methods(definition)["pet_shop"] == ["list_all"]
