@@ -34,6 +34,8 @@ def mapper():
     ("schema", "expr"),
     [
         ({"type": "integer"}, "int"),
+        ({"type": "string", "format": "binary"}, "Any"),  # a file to upload
+        ({"type": "string", "format": "byte"}, "str"),  # base64 text
         ({"type": "string", "nullable": True}, "str | None"),
         ({"type": ["number", "null"]}, "float | None"),
         ({"type": ["string", "integer"]}, "str | int"),

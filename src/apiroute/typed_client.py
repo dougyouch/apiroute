@@ -110,11 +110,14 @@ def _adapter(response_type: Any) -> Any:
 
 def _plain(value: Any) -> Any:
     """Request models as JSON-ready data, by their wire names, leaving out fields not set.
-    Files (GraphQL Upload values, open files) stay as they are, for a multipart request."""
+    Files (GraphQL Upload values, open files, (name, content, type) tuples, bytes) stay as
+    they are, for a multipart request."""
     if hasattr(value, "model_dump"):
         dumped = _with_uploads(value).model_dump(mode="python", by_alias=True, exclude_unset=True)
         return _jsonable(dumped)
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, tuple):  # kept a tuple: the multipart encoder reads one as a file
+        return tuple(_plain(item) for item in value)
+    if isinstance(value, list):
         return [_plain(item) for item in value]
     if isinstance(value, dict):
         return {key: _plain(item) for key, item in value.items()}
@@ -153,9 +156,11 @@ def _jsonable(value: Any) -> Any:
     as pydantic's JSON mode would, except files, which a GraphQL body sends as parts."""
     if isinstance(value, dict):
         return {key: _jsonable(item) for key, item in value.items()}
-    if isinstance(value, (list, tuple)):
+    if isinstance(value, tuple):  # a (name, content, type) file for a multipart body
+        return tuple(_jsonable(item) for item in value)
+    if isinstance(value, list):
         return [_jsonable(item) for item in value]
-    if value is None or isinstance(value, (str, int, float, bool)) or _is_file(value):
+    if value is None or isinstance(value, (str, int, float, bool, bytes)) or _is_file(value):
         return value
     from pydantic_core import to_jsonable_python
 
