@@ -3,6 +3,7 @@ from apiroute.codegen.generated_header import generated_header
 from apiroute.codegen.import_order import import_names
 from apiroute.codegen.model_modules import SchemaModule
 from apiroute.codegen.python_literals import py_str
+from apiroute.codegen.section_path import section_depth
 from apiroute.codegen.source_writer import SourceWriter
 
 
@@ -68,7 +69,8 @@ class ModelsIndexEmitter:
         module = self._modules[name]
         if module.folder == self._group.name:
             return f".schemas.{module.name}"
-        return f"...models.schemas.{module.name}"  # a root model, from a tag's index
+        # a root model, from a section's index: up through models/ and the section's folders
+        return "." * (section_depth(self._group.name) + 2) + f"models.schemas.{module.name}"
 
     def _grouped(self) -> list[tuple[str, list[str]]]:
         by_path: dict[str, list[str]] = {}
