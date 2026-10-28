@@ -1,0 +1,25 @@
+openapi: 3.0.0
+info:
+  title: Filters
+  version: "1"
+servers:
+  - url: https://filters.test
+paths:
+  /v1/charges:
+    get:
+      operationId: listCharges
+      tags: [charges]
+      parameters:
+        # Stripe's style: created[gt]=1&expand[]=customer
+        - {name: created, in: query, style: deepObject, explode: true, schema: {type: object}}
+        - {name: expand, in: query, style: deepObject, explode: true, schema: {type: array, items: {type: string}}}
+      responses:
+        "200": {description: ok, content: {application/json: {schema: {type: object}}}}
+  /v1/tags:
+    get:
+      operationId: listTags
+      tags: [tags]
+      parameters:
+        - {name: name, in: query, schema: {type: array, items: {type: string}}}
+      responses:
+        "200": {description: ok, content: {application/json: {schema: {type: object}}}}

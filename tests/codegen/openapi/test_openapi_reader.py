@@ -129,3 +129,28 @@ def _form_operation(operation_id, media, schema):
         "responses": {"200": {"description": "ok"}},
     }
 
+
+def test_parameter_styles_are_kept(tmp_path):
+    spec = {
+        "openapi": "3.0.0",
+        "info": {"title": "Styles", "version": "1"},
+        "paths": {
+            "/v1/customers": {
+                "get": {
+                    "operationId": "GetCustomers",
+                    "parameters": [
+                        {"name": "created", "in": "query", "style": "deepObject", "schema": {}},
+                        {"name": "limit", "in": "query", "schema": {"type": "integer"}},
+                    ],
+                    "responses": {"200": {"description": "ok"}},
+                }
+            }
+        },
+    }
+    path = tmp_path / "styles.json"
+    path.write_text(json.dumps(spec))
+    (operation,) = OpenApiReader(str(path), "StylesApi").read().root.operations
+    assert [(p.name, p.style) for p in operation.parameters] == [
+        ("created", "deepObject"),
+        ("limit", ""),
+    ]

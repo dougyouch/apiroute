@@ -124,11 +124,21 @@ class DictClientEmitter:
         if self._is_root and self._definition.base_url:
             out.line(f"base_url = {py_str(self._definition.base_url)}")
         out.line('compile_routes = "lazy"')
+        if self._has_deep_object_query():
+            # created[gt]=1, expand[]=x: bracketed names, as the spec's deepObject style asks
+            out.line('query_format = "nested"')
         if not self._is_root:
             # the client's auth, and its retry and timeout policy
             out.line('inherit = ("headers", "query_params", "retries", "timeout")')
         if self._is_root and self._base_class is None:
             self._auth_settings(out)
+
+    def _has_deep_object_query(self) -> bool:
+        return any(
+            parameter.location == "query" and parameter.style == "deepObject"
+            for operation in self._group.operations
+            for parameter in operation.parameters
+        )
 
     def _auth_settings(self, out: SourceWriter) -> None:
         for location, attribute in (("header", "headers"), ("query", "query_params")):
