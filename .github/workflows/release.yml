@@ -2,9 +2,10 @@ name: Release
 
 # Every push to main is a release. CI runs first; then scripts/next_release.py works out the
 # version from the conventional commits since the last tag (feat: minor, ! or BREAKING CHANGE:
-# major, anything else: patch), and the commit is tagged, built (hatch-vcs reads the version
-# from the tag), published to PyPI and given a GitHub release with notes from those commits.
-# Every step skips what's already done, so rerunning a failed release finishes it.
+# major, anything else: patch). A release commit adds those commits to CHANGELOG.md and is
+# tagged, built (hatch-vcs reads the version from the tag), published to PyPI and given a
+# GitHub release with the same notes. Every step skips what's already done, so rerunning a
+# failed release finishes it.
 on:
   push:
     branches: [main]
@@ -36,24 +37,46 @@ jobs:
           fetch-depth: 0 # every commit and tag, for the version
       - uses: astral-sh/setup-uv@v6
 
+      # A rerun of a release whose tag exists finishes that release from its tag. A push that
+      # newer pushes have overtaken is left to them: the newest releases every commit since
+      # the last tag, so nothing is skipped and main isn't pushed to from behind.
       - name: Work out the version
         run: |
           version=$(python3 scripts/next_release.py)
           echo "VERSION=$version" >> "$GITHUB_ENV"
           echo "TAG=v$version" >> "$GITHUB_ENV"
           python3 scripts/next_release.py --notes > "$RUNNER_TEMP/notes.md"
-
-      - name: Tag
-        run: |
-          if [ -z "$(git tag --points-at HEAD --list "$TAG")" ]; then
-            git tag "$TAG"
-            git push origin "$TAG"
+          if git rev-parse -q --verify "refs/tags/v$version" > /dev/null; then
+            echo "STATE=tagged" >> "$GITHUB_ENV"
+          elif [ "$(git rev-parse origin/main)" != "$(git rev-parse HEAD)" ]; then
+            echo "STATE=overtaken" >> "$GITHUB_ENV"
+            echo "::notice::main has moved on; the newer push releases this commit with it."
+          else
+            echo "STATE=new" >> "$GITHUB_ENV"
           fi
 
+      # The release commit adds the notes to CHANGELOG.md; the tag goes on it, so the package
+      # carries its own changelog entry. Pushed with GITHUB_TOKEN, it starts no workflow.
+      - name: Commit the changelog and tag
+        if: env.STATE == 'new'
+        run: |
+          python3 scripts/next_release.py --changelog CHANGELOG.md
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git commit -m "chore(release): $TAG" CHANGELOG.md
+          git tag "$TAG"
+          git push --atomic origin HEAD:main "$TAG"
+
+      - name: Check out the tag
+        if: env.STATE == 'tagged'
+        run: git checkout "$TAG"
+
       - name: Build
+        if: env.STATE != 'overtaken'
         run: uv build
 
       - name: Publish to PyPI
+        if: env.STATE != 'overtaken'
         run: |
           if curl -sf "https://pypi.org/pypi/apiroute/$VERSION/json" > /dev/null; then
             echo "apiroute $VERSION is already published"
@@ -62,6 +85,7 @@ jobs:
           fi
 
       - name: GitHub release
+        if: env.STATE != 'overtaken'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |

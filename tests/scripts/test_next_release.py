@@ -84,3 +84,45 @@ def test_notes_group_the_commits(repo):
     assert notes.index("### Fixes") < notes.index("### Other changes")
     assert "- feat: add x (" in notes and "- docs: explain z (" in notes
     assert notes.count("feat!: drop w") == 2  # under breaking changes and under features
+
+
+def test_release_commits_are_left_out(repo):
+    commit("feat: one")
+    _git("tag", "v1.0.0")
+    commit("chore(release): v1.0.0")
+    commit("fix: two")
+    assert release() == "1.0.1"
+    assert "chore(release)" not in release("--notes")
+
+
+CHANGELOG = """# Changelog
+
+Notes before the releases.
+
+## [1.0.0](https://github.com/o/r/compare/v0.9.0...v1.0.0) (2026-01-01)
+
+### Features
+
+- feat: one (1234567)
+"""
+
+
+def test_changelog_gets_the_release_above_the_newest_one(repo):
+    commit("feat: one")
+    _git("tag", "v1.0.0")
+    _git("remote", "add", "origin", "git@github.com:o/r.git")
+    commit("fix: mend")
+    (repo / "CHANGELOG.md").write_text(CHANGELOG)
+    assert release("--changelog", "CHANGELOG.md") == "1.0.1"
+    text = (repo / "CHANGELOG.md").read_text()
+    head, rest = text.split("## [1.0.1](https://github.com/o/r/compare/v1.0.0...v1.0.1) (")
+    assert head == "# Changelog\n\nNotes before the releases.\n\n"
+    assert rest.index("- fix: mend (") < rest.index("## [1.0.0]")
+    assert rest.endswith(CHANGELOG.split("releases.\n\n")[1])
+
+
+def test_the_first_changelog_entry_goes_at_the_end(repo):
+    commit("feat: start")
+    (repo / "CHANGELOG.md").write_text("# Changelog\n")
+    assert release("--changelog", "CHANGELOG.md") == "0.1.0"
+    assert (repo / "CHANGELOG.md").read_text().startswith("# Changelog\n\n## 0.1.0 (")
