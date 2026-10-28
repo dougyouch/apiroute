@@ -129,7 +129,8 @@ def test_dict_only_generation_has_no_models(generate):
 
 def test_lazy_attributes_are_annotated_for_type_checkers_only(shop):
     source = inspect.getsource(sys.modules[f"{shop.__name__}.client"])
-    assert '# mypy: disable-error-code="empty-body"' in source.splitlines()[1]
+    # after the header, which wraps onto two lines when apiroute's version is long (a dev build)
+    assert '# mypy: disable-error-code="empty-body"' in source.splitlines()[1:3]
     assert "if TYPE_CHECKING:\n    from .models.client import ShopApiModels\n" in source
     assert '    pets: PetsSection = lazy(".pets.client", "PetsSection")' in source
     assert '    models: ShopApiModels = lazy(".models.client", "ShopApiModels")' in source

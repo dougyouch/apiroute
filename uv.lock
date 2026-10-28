@@ -31,7 +31,6 @@ wheels = [
 
 [[package]]
 name = "apiroute"
-version = "2.3.1"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },
@@ -76,7 +75,7 @@ requires-dist = [
     { name = "pydantic", marker = "extra == 'pydantic'", specifier = ">=2.6" },
     { name = "pyyaml", marker = "extra == 'codegen'", specifier = ">=6" },
 ]
-provides-extras = ["pydantic", "soap", "graphql", "codegen"]
+provides-extras = ["codegen", "graphql", "pydantic", "soap"]
 
 [package.metadata.requires-dev]
 dev = [

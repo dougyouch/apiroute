@@ -1,6 +1,6 @@
 [project]
 name = "apiroute"
-version = "2.3.1"
+dynamic = ["version"]  # from the git tag (hatch-vcs): every merge to main is tagged and released
 description = "Declarative Python API clients for REST, GraphQL and SOAP on httpx: one decorator per call, with retries, async, typed models, test mocks and OpenAPI/WSDL code generation."
 readme = "README.md"
 license = "MIT"
@@ -82,8 +82,11 @@ dev = [
 ]
 
 [build-system]
-requires = ["hatchling"]
+requires = ["hatchling", "hatch-vcs"]
 build-backend = "hatchling.build"
+
+[tool.hatch.version]
+source = "vcs"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/apiroute"]

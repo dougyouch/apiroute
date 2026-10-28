@@ -1,8 +1,8 @@
 # Changelog
 
-All notable changes to this project are documented here. The format follows
-[Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
-[Semantic Versioning](https://semver.org/).
+Releases after 2.3.1 are listed on [GitHub Releases](https://github.com/dougyouch/apiroute/releases),
+with notes from their commits: every merge to main is now released on its own. Earlier
+releases are below. The project uses [Semantic Versioning](https://semver.org/).
 
 ## [2.3.1](https://github.com/dougyouch/apiroute/compare/v2.3.0...v2.3.1) (2026-10-28)
 
