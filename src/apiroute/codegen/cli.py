@@ -7,6 +7,7 @@ import httpx
 
 from apiroute.base_url_validator import validate_base_url
 from apiroute.codegen.nullable_fields import NullableFields
+from apiroute.codegen.open_enums import OpenEnums
 from apiroute.codegen.operation_names import OperationNames
 from apiroute.codegen.package_emitter import PackageEmitter
 from apiroute.codegen.pagination.all_pages_methods import AllPagesMethods
@@ -38,6 +39,8 @@ def _generate(arguments: argparse.Namespace) -> int:
         definition.base_class = arguments.base_class
         if arguments.nullable_fields:
             NullableFields().apply(definition)
+        if arguments.open_enums:
+            OpenEnums().apply(definition)
         if arguments.base_url is not None:
             validate_base_url(arguments.base_url)
             definition.base_url = arguments.base_url.rstrip("/")
@@ -141,6 +144,12 @@ def _parser() -> argparse.ArgumentParser:
         action="store_true",
         help="type every model field as accepting null, for a spec that leaves out nullable "
         "where the API does return null",
+    )
+    generate.add_argument(
+        "--open-enums",
+        action="store_true",
+        help="let every enum in the models also take values the spec doesn't list, for an API "
+        "that sends them",
     )
     generate.add_argument(
         "--no-format",
