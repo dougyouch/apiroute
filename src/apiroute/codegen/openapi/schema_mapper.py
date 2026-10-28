@@ -67,6 +67,8 @@ class SchemaMapper:
             return TypeRef.of(f"list[{item.expr}]", item)
         if kind == "object":
             return self._object(schema, hint, base)
+        if kind == "string" and schema.get("format") == "binary":
+            return ANY  # a file: bytes, an open file, or a (name, content, type) tuple
         return TypeRef(_PRIMITIVES.get(kind, "Any"))
 
     def _nullable_ref(self, schema: dict, base: str | None) -> TypeRef:

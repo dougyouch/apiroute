@@ -151,3 +151,17 @@ def test_every_route_body_ends_with_an_ellipsis(shop):
     for node in routes:
         last = node.body[-1]
         assert isinstance(last, ast.Expr) and last.value.value is Ellipsis, node.name
+
+
+@needs_pydantic
+def test_typed_uploads_keep_their_files(shop, api, recorder):
+    recorder.respond(httpx.Response(204), httpx.Response(204))
+    api.pets.models.upload_photo(7, body={"file": ("a.jpg", b"\xff\xd8", "image/jpeg")})
+    part = recorder.last.content
+    assert b'name="file"; filename="a.jpg"' in part and b"Content-Type: image/jpeg" in part
+    assert b"\xff\xd8" in part
+    models = module(shop, "pets.models.models")
+    request = models.PetsUploadPhotoRequest(file=("b.jpg", b"\xff\xd9"), caption="hi")
+    api.pets.models.upload_photo(8, body=request)
+    assert b'filename="b.jpg"' in recorder.last.content and b"\xff\xd9" in recorder.last.content
+    assert b'name="caption"' in recorder.last.content
