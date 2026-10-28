@@ -4,6 +4,13 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.2.2](https://github.com/dougyouch/apiroute/compare/v2.2.1...v2.2.2) (2026-10-28)
+
+
+### Bug Fixes
+
+* a reference to a nullable schema may be None ([6b3bc14](https://github.com/dougyouch/apiroute/commit/6b3bc14aa9abc5548cf33b953f77f94707e59392))
+
 ## [2.2.1](https://github.com/dougyouch/apiroute/compare/v2.2.0...v2.2.1) (2026-10-28)
 
 
