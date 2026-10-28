@@ -47,5 +47,5 @@
 
 ## 7. Proving it on real APIs (after release, in the client repositories)
 
-- [ ] 7.1 stripe-apiroute: a rules file for `ItemCursor` on list operations; a live test paging customers past the first page with `limit=1`
-- [ ] 7.2 github-apiroute: `NextUrl` via `Link` for array list operations with `page`; a live test paging a public repo's issues past the first page with `per_page=2`
+- [x] 7.1 stripe-apiroute: a rules file for `ItemCursor` on list operations; a live test paging customers past the first page with `limit=1`
+- [x] 7.2 github-apiroute: `NextUrl` via `Link` for array list operations with `page`; a live test paging a public repo's issues past the first page with `per_page=2`
