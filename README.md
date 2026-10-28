@@ -4,6 +4,7 @@ Build API clients declaratively: one `@route` per endpoint, safe defaults, [http
 
 - **One decorator per call.** `@route("/users/{id}")` for REST and `graphql_route("query ...")` for GraphQL. Signatures are checked when the class is created, so a typo fails at import time, not in production.
 - **GraphQL built for hand-written queries.** You write the query, apiroute checks it against the API's schema when the class is created, fills its variables from the method's arguments, unwraps `data`, raises `GraphQLError` with any partial data, and won't re-send a mutation that may already have run.
+- **Pagination for any API.** `paginate=ItemCursor()`, `NextUrl()`, `Cursor(...)`, `PageNumber()` or `Offset()` turns a list route into a lazy iterator over every page's items, sync or async, with guards against endless loops and against next-page URLs on other hosts.
 - **Retries you can trust.** Exponential backoff with jitter and `Retry-After` support, and a `should_retry` hook for anything else.
 - **Typed results.** A return annotation turns JSON into a pydantic model or a dataclass.
 - **Sync and async from the same class.** `client.get_user(...)` or `await client.aio.get_user(...)`.
@@ -198,6 +199,7 @@ class Api(Client):
 
 - `headers` and `query` merge over the class and route values. A `None` value leaves that header or param out.
 - `body` is shallow-merged over the route's body when both are dicts, and a `None` value removes that key. Any other body (a list or a string, or when the route has no dict body) replaces the route's body.
+- `url`, an absolute URL, replaces the base URL, path and query; the client's own `query_params` are added when it doesn't carry them. Paginated routes use it for next-page URLs.
 
 ```python
 @route("/users", body={"user": {"name": "{name}"}, "notify": True})
@@ -207,6 +209,67 @@ def create_user(self, name: str) -> dict: ...
 client.with_options(body={"notify": None, "source": "import"}).create_user("Ann")
 # sends {"user": {"name": "Ann"}, "source": "import"}
 ```
+
+### Pagination
+
+REST APIs page their lists in many ways. `paginate=` takes a strategy from `apiroute.pagination` and turns a route into an iterator over the items of every page:
+
+```python
+from collections.abc import Iterator
+
+from apiroute.pagination import ItemCursor, NextUrl
+
+
+class Stripe(Client):
+    base_url = "https://api.stripe.com"
+
+    @route("GET", "/v1/customers", paginate=ItemCursor())
+    def customers(self, limit: Query = None, email: Query = None) -> Iterator[Customer]: ...
+
+
+class GitHub(Client):
+    base_url = "https://api.github.com"
+
+    @route("GET", "/repos/{owner}/{repo}/issues", paginate=NextUrl())
+    def issues(self, owner: str, repo: str, per_page: Query = None) -> Iterator[dict]: ...
+
+
+for customer in stripe.customers(limit=100):  # pages fetched as iteration reaches them
+    ...
+first_ten = list(itertools.islice(gh.issues("octocat", "Hello-World"), 10))
+for page in stripe.customers().pages():  # whole pages: .items, .data, .response, .index
+    ...
+async for customer in stripe.aio.customers():
+    ...
+```
+
+| Strategy | For | Next page | Stops when |
+| --- | --- | --- | --- |
+| `Cursor(param, token="next_cursor", header=None, location="query")` | Slack, Google, Notion | `param` set to the token at the body's dotted path `token`, or in response header `header`; `location="body"` sends it in the body | the token is missing, null or `""` |
+| `ItemCursor(param="starting_after", field="id", has_more="has_more", items="data")` | Stripe | `param` set to the last item's `field` | `has_more` is false |
+| `NextUrl(link="next", path=None)` | GitHub, Django REST framework | the `Link` header's `rel="next"` URL, or the URL at the body's dotted `path` | there's no next URL |
+| `PageNumber(param="page", start=1, size=None, total_pages=None)` | page numbers | `param` plus one | an empty page; the body's `total_pages`; else a page shorter than the `size` parameter sent |
+| `Offset(param="offset", limit="limit", total=None)` | offset and limit | `param` plus the items received | an empty page; the body's `total`; else a page shorter than the `limit` sent |
+
+- **Where the items are.** Each strategy takes `items`, a dotted path to the page's list (`"data"`, `"response.results"`), where `""` (the default, except for `ItemCursor`) means the body is the list. A path that's missing or isn't a list raises `ValueError`.
+- **Every page is an ordinary request.** It goes through the client's headers, `on_request`, retries (each page retried on its own), idempotency keys and status checks, with the caller's arguments (filters, page size) on every page. The first page is requested as called, so passing a cursor or page starts there.
+- **Items are converted** by `model=`, or by `X` in an `Iterator[X]` return annotation; otherwise they're dicts. `.pages()` gives each page's items as decoded.
+- **Lazy and restartable.** Nothing is requested until iteration starts. Cap it with `islice` or `break`; `.pages()` starts again from the first page.
+- **Explicit signals win.** `PageNumber` and `Offset` fall back on the short-page rule only when the API gives no total, and only when the request sent a page size: a server that caps the page size below what was asked makes a full page look short. Offsets and page numbers can also skip or repeat items when the list changes while you iterate; prefer a cursor when the API has one.
+- **It can't loop or leak.** A next request equal to the one before (the same cursor again) raises `ValueError` rather than paging forever, as does `ItemCursor` meeting an empty page that says there's more. A next URL resolves against the page's URL, and one on another scheme, host or port than `base_url` raises `ValueError` before anything is sent to it, so the client's credentials never go elsewhere.
+- **Custom strategies.** Any object with `items(page)` (the page's list) and `next(page)` (a `NextRequest` or `None`) works. A `Page` has `data`, `response`, `request` (the `NextRequest` that asked for it), `index`, `items` and `sent(name)` (a query parameter as this page's request sent it). `NextRequest(query=..., body=..., url=...)` merges query and body values over the caller's arguments, or replaces the URL:
+
+  ```python
+  class Since:
+      def items(self, page):
+          return page.data["events"]
+
+      def next(self, page):
+          if page.response.headers.get("X-Done") == "1":
+              return None
+          return NextRequest(query={"since": page.data["last_seen"]})
+  ```
+- A paginated route reads JSON pages itself, so it can't also take `returns=`, `stream=`, `decoder=` or a `Result` parameter.
 
 ## Sections
 
@@ -586,7 +649,7 @@ gh.get_user(42)  # error: "int" isn't "str"
 gh.get_user("octocat", page=2)  # error: no parameter "page"
 ```
 
-- **Decorated routes** (`@route` and `@graphql_route` on a `def`) are typed as their method without `self`. A `paginate=` route annotated `Iterator[Issue]` yields `Issue`s.
+- **Decorated routes** (`@route` and `@graphql_route` on a `def`) are typed as their method without `self`. A `paginate=` route annotated `Iterator[Issue]` yields `Issue`s, REST or GraphQL.
 - **Generated clients are typed end to end:** `client.pets.models.get_pet(1)` is a `Pet` with typed fields, and the dict routes have their own signatures. Their section and `.models` attributes are annotated, with the classes imported for type checkers only, so loading stays lazy. Generated packages pass mypy and pyright.
 - **Routes without a `def`** (`get_user = route(...)`) get their signature when the class is created, so type checkers see a callable taking anything and returning `Any`.
 - **Nested sections** (`class issues(Section)` inside a client) are typed as instances by pyright and Pylance. mypy can't follow that, so to mypy their routes are `Any`, never an error. For full mypy types, put the section in its own module and reach it with `issues: IssuesSection = lazy(".issues", "IssuesSection")`, as generated clients do.
@@ -703,6 +766,20 @@ Nothing is imported until it's used. On GitHub's spec (1,242 operations, 4,035 m
 - **A relative server URL needs a host.** A spec read from a URL resolves a relative `servers` entry (`/api/v2`) against the spec's own address. Read from a file, it can't, so pass the host: `--base-url https://api.example.com/api/v2`. The option also overrides the spec's servers.
 - **Specs that say "never null" when the API sends null.** Models follow the spec, so a field the spec declares non-nullable fails validation when the response has `null` there; GitHub's REST description, for one, declares a label's `description` a string, but labels without one come back `null`. `--nullable-fields` types every model field as accepting `None` (`description: str | None`). Required fields stay required: they must be present, but may be null. The dict layer is unaffected.
 - **Naming operations yourself.** Sections come from tags and methods from `operationId`s. For a spec where those make poor names (Stripe's has no tags, and IDs like `PostCustomersCustomer`), `--operation-names names.json` maps operation IDs to dotted names: `{"PostCustomers": "customers.create", "GetIssuingCards": "issuing.cards.list"}`. The last part is the method, and the parts before it are sections, nested as deep as you like (`api.issuing.cards.list()`) and loaded lazily level by level. Operations the map doesn't name stay where the spec put them; a name that matches no operation is a warning, and two methods with one name, or a method named like a section, are errors.
+- **Paginated `_all` methods.** `--pagination rules.yaml` picks the operations that page and says how. Each one keeps its one-page method and gains `<name>_all`, with the same arguments, iterating every page's items: dicts, or `.models` yielding the item model (`stripe.customers.models.list_all(limit=100)` yields `Customer`s). Rules are tried in order and the first match wins; a rule selects by any of `operations` (operation IDs or glob patterns), `method` (default `GET`), `has_parameter` and `response` (`array`, or `{has: [...]}` naming properties), and gives `paginate` with a strategy `type` (`cursor`, `item_cursor`, `next_url`, `page`, `offset`) and its arguments, as in [Pagination](#pagination) (`page` is `PageNumber`):
+
+  ```yaml
+  - name: Stripe lists
+    has_parameter: [starting_after]
+    response: {has: [data, has_more]}
+    paginate: {type: item_cursor}
+  - name: GitHub lists
+    response: array
+    has_parameter: [page]
+    paginate: {type: next_url}          # the Link header
+  ```
+
+  The generator prints how many operations each rule matched and warns about one that matched none; an unknown type or argument, an `items` path that isn't an array in an operation's response, or an `_all` name that's already taken stops it. Without a matching rule, an operation's `x-speakeasy-pagination` extension is used (`offsetLimit`, `cursor` and `url`, with `$.dotted.paths`); one apiroute can't map is a warning.
 - **Query and form styles follow the spec.** A section with `style: deepObject` query parameters sends them with bracketed names (`created[gt]=1&expand[]=customer`); others repeat the name for a list (`tag=a&tag=b`). Form bodies always use brackets (`metadata[key]=v`, `items[][price]=p`). A request body that can hold nothing (an object schema with no properties and `additionalProperties: false`, as on most of Stripe's reads) gets no `body` argument.
 - **Output passes `ruff check` and `ruff format`.** When ruff is installed, the generator runs it over the output; `--no-format` skips that.
 - **OpenAPI:** tags become sections, `operationId`s become method names, and path, query and header parameters become arguments. Bodies can be JSON, form or multipart; responses can be JSON, text or binary. Schemas become models, with `allOf` merged, `oneOf`/`anyOf` as unions and enums as `Literal`. Bearer, basic and API key auth become constructor arguments.
