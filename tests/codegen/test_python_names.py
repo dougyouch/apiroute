@@ -1,3 +1,5 @@
+import pytest
+
 from apiroute.codegen.python_names import pascal_case, safe_identifier, snake_case, unique
 
 
@@ -57,9 +59,9 @@ def test_no_model_field_shadows_base_model():
     are pydantic's own namespace, left out here."""
     import warnings
 
-    import pydantic
-
     from apiroute.codegen.python_names import MODEL_RESERVED
+
+    pydantic = pytest.importorskip("pydantic")
 
     names = {*dir(pydantic.BaseModel), *dir(type(pydantic.BaseModel))}
     public = {name for name in names if not name.startswith(("_", "model_"))}
