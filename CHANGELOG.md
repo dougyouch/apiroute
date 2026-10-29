@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.7.0](https://github.com/dougyouch/apiroute/compare/v2.6.1...v2.7.0) (2026-10-29)
+
+### Features
+
+- feat: @route takes check= to reject a response by its body (d71a296)
+
 ## [2.6.1](https://github.com/dougyouch/apiroute/compare/v2.6.0...v2.6.1) (2026-10-29)
 
 ### Fixes
