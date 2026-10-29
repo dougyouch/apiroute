@@ -46,6 +46,8 @@ class RouteDefinition:
     idempotency_key: str | bool | None = None
     # The pagination strategy; converter then converts each item rather than the response
     paginate: Any = None
+    # Accepts or rejects each response whose status is expected, before its body is parsed
+    check: Any = None
 
     @property
     def call_signature(self) -> inspect.Signature:

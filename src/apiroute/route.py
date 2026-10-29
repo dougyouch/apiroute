@@ -1,4 +1,7 @@
+from collections.abc import Callable
 from typing import Any
+
+import httpx
 
 from apiroute.namespace import current_prefix
 from apiroute.route_decorator import RouteDecorator
@@ -21,6 +24,7 @@ def route(
     idempotent: bool | None = None,
     idempotency_key: str | bool | None = None,
     paginate: Any = None,
+    check: Callable[[httpx.Response], Any] | None = None,
 ) -> RouteDecorator:
     """Declares an endpoint, on a def or on its own:
 
@@ -49,6 +53,13 @@ def route(
     paginate, a strategy from apiroute.pagination (ItemCursor(), NextUrl() ...), makes the
     method return an iterator over the items of every page, requesting each page when
     iteration reaches it; model=, or X from an Iterator[X] return annotation, converts items.
+
+    check, a callable taking the httpx.Response, accepts or rejects a response whose status is
+    expected, for APIs that answer 200 with an error in the body. It runs inside the retry
+    loop, before the body is parsed: return False (or another false value but None) to raise
+    UnexpectedResponse, raise your own exception, or return None or a true value to accept:
+
+        @route("/orders", check=lambda response: response.json()["status"] != "error")
     """
     method, path = _split(method_and_path)
     path = current_prefix() + path
@@ -69,6 +80,7 @@ def route(
         idempotent=idempotent,
         idempotency_key=idempotency_key,
         paginate=paginate,
+        check=check,
     )
     return RouteDecorator(spec)
 

@@ -99,6 +99,12 @@ gh.with_options(timeout=5, retries=1).get_repos("octocat")
 - **Other arguments** must be annotated with `Query`, `Query("name")`, `Header("X-Name")` or `Body`. The exception is a parameter named `body` on a route without a body template. Otherwise the class fails to build with `RouteDefinitionError`.
 - **Returns.** Parsed JSON by default (`None` for an empty body), or `returns="text" | "bytes" | "response"`.
 - **Errors.** Any status outside `expected` (any 2xx when it's unset) raises `UnexpectedResponse`, which carries the `.response`.
+- **Errors inside a 200.** `check=`, a callable taking the `httpx.Response`, accepts or rejects a response whose status is expected, for APIs that always answer 200 and put the failure in the body. Return `False` (or any false value but `None`) to raise `UnexpectedResponse`, raise an exception of your own, or return `None` or a true value to accept. It runs inside the retry loop, before the body is parsed, so what it raises goes through `should_retry`. A `stream=` route can't take it, since its body isn't read yet. For a check every route shares, override [`check_response`](#methods-to-override).
+
+  ```python
+  @route("/orders", check=lambda response: response.json()["status"] != "error")
+  def list_orders(self) -> dict: ...
+  ```
 - **Falling back to the client.** A parameter whose default is `FROM_CLIENT` takes the client's attribute of the same name when the caller leaves it out: `def list_members(self, org: str = FROM_CLIENT)`.
 
 ### Response hook
@@ -553,7 +559,7 @@ class SignedApi(Client):
 
 Network errors don't reach `on_response`; every failed attempt is logged on the `apiroute` logger, with the route, the attempt number and the error.
 
-`check_response` is for APIs that report a failure inside a successful response, such as a 200 whose body says the call was rate limited. Whatever it raises goes through `should_retry` like any other failure:
+`check_response` is for APIs that report a failure inside a successful response, such as a 200 whose body says the call was rate limited (for one route, `@route(..., check=...)` does the same). Whatever it raises goes through `should_retry` like any other failure:
 
 ```python
 class RateLimited(Exception): ...

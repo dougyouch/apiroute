@@ -17,6 +17,7 @@ class ResponseReader:
         returns: str,
         converter: Any = None,
         decoder: Any = None,
+        check: Any = None,
         redact_url: Callable[[str], str] = str,
     ):
         self._route_name = route_name
@@ -25,9 +26,11 @@ class ResponseReader:
         self._returns = returns
         self._converter = converter
         self._decoder = decoder
+        self._check = check
 
     def read(self, response: httpx.Response) -> Any:
         self.check_status(response)
+        self._run_check(response)
         result = self._extract(response)
         if self._converter is None or self._returns != "json":
             return result
@@ -42,6 +45,15 @@ class ResponseReader:
     def check_status(self, response: httpx.Response) -> None:
         if not self.is_expected(response.status_code):
             raise self._unexpected(response)
+
+    def _run_check(self, response: httpx.Response) -> None:
+        """The route's check=: None or a true value accepts the response, any other value
+        rejects it; an exception it raises propagates as it is."""
+        if self._check is None:
+            return
+        verdict = self._check(response)
+        if verdict is not None and not verdict:
+            raise self._unexpected(response, "rejected by check")
 
     def is_expected(self, status_code: int) -> bool:
         if self._expected is None:

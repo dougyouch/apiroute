@@ -45,3 +45,24 @@ def test_expected_codes_replace_the_2xx_rule():
 def test_invalid_json_raises_unexpected_response():
     with pytest.raises(UnexpectedResponse, match="get_thing: invalid JSON body from GET"):
         ResponseReader("get_thing", None, "json").read(response(content=b"<html>"))
+
+
+@pytest.mark.parametrize("verdict", [None, True, 1])
+def test_a_check_returning_none_or_true_accepts(verdict):
+    reader = ResponseReader("r", None, "json", check=lambda _: verdict)
+    assert reader.read(response(json={"a": 1})) == {"a": 1}
+
+
+@pytest.mark.parametrize("verdict", [False, 0, ""])
+def test_a_check_returning_false_raises_unexpected_response(verdict):
+    reader = ResponseReader("get_thing", None, "json", check=lambda _: verdict)
+    with pytest.raises(UnexpectedResponse, match="get_thing: rejected by check from GET"):
+        reader.read(response(json={"status": "error"}))
+
+
+def test_a_check_runs_only_on_an_expected_status():
+    seen = []
+    reader = ResponseReader("r", None, "json", check=seen.append)
+    with pytest.raises(UnexpectedResponse, match="unexpected status 500"):
+        reader.read(response(500))
+    assert seen == []
