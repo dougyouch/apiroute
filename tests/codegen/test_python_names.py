@@ -49,3 +49,22 @@ def test_client_hooks_and_settings_are_reserved():
         "soap_header",
     ]
     assert [unique(name, taken) for name in names] == [f"{name}_2" for name in names]
+
+
+def test_no_model_field_shadows_base_model():
+    """pydantic warns about a field named after any attribute BaseModel has, those it gets
+    from its metaclass (register, mro) too, which dir(BaseModel) doesn't list. model_ names
+    are pydantic's own namespace, left out here."""
+    import warnings
+
+    import pydantic
+
+    from apiroute.codegen.python_names import MODEL_RESERVED
+
+    names = {*dir(pydantic.BaseModel), *dir(type(pydantic.BaseModel))}
+    public = {name for name in names if not name.startswith(("_", "model_"))}
+    for name in sorted(public):
+        field = unique(name, set(), MODEL_RESERVED)
+        with warnings.catch_warnings():
+            warnings.simplefilter("error")
+            pydantic.create_model("Model", **{field: (int, 0)})

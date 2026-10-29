@@ -30,7 +30,8 @@ RESERVED = frozenset(
     }
 )
 
-# Names a pydantic field can't take without shadowing BaseModel
+# Names a pydantic field can't take without shadowing BaseModel, its metaclass (ABCMeta's
+# register, type's mro) included
 MODEL_RESERVED = frozenset(
     {
         "copy",
@@ -50,6 +51,8 @@ MODEL_RESERVED = frozenset(
         "model_computed_fields",
         "model_extra",
         "model_fields_set",
+        "register",
+        "mro",
     }
 )
 
