@@ -4,6 +4,16 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.6.1](https://github.com/dougyouch/apiroute/compare/v2.6.0...v2.6.1) (2026-10-29)
+
+### Fixes
+
+- fix: model fields named register or mro no longer shadow BaseModel (6cbd2f0)
+
+### Other changes
+
+- test: skip the BaseModel shadowing check when pydantic isn't installed (856274e)
+
 ## [2.6.0](https://github.com/dougyouch/apiroute/compare/v2.5.1...v2.6.0) (2026-10-28)
 
 ### Features
