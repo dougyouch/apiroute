@@ -25,3 +25,5 @@ class RouteSpec(NamedTuple):
     idempotency_key: str | bool | None = None
     # A pagination strategy (apiroute.pagination): the method then iterates every page's items
     paginate: Any = None
+    # Called with each response whose status is expected; a false value but None rejects it
+    check: Any = None

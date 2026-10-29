@@ -99,6 +99,7 @@ class RouteExecutor:
             returns,
             definition.converter,
             definition.decoder,
+            definition.check,
             redact_url=self._root.redact_url,
         )
 

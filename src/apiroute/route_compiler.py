@@ -80,6 +80,7 @@ class RouteCompiler:
             idempotent=self._idempotent(),
             idempotency_key=self._idempotency_key(),
             paginate=paginate,
+            check=self._check(),
         )
 
     def _signature(self) -> inspect.Signature:
@@ -236,6 +237,16 @@ class RouteCompiler:
         if key is None or key is False or (isinstance(key, str) and key):
             return key
         raise ValueError("idempotency_key must be a header name, False or None")
+
+    def _check(self) -> Any:
+        check = self._spec.check
+        if check is None:
+            return None
+        if not callable(check):
+            raise TypeError("check= takes a callable, given the httpx.Response")
+        if self._spec.stream is not None:
+            raise ValueError("check= reads the body; a stream= route's body isn't read yet")
+        return check
 
     def _expected(self) -> frozenset[int] | None:
         expected = self._spec.expected
