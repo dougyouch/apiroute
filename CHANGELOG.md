@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.7.1](https://github.com/dougyouch/apiroute/compare/v2.7.0...v2.7.1) (2026-10-30)
+
+### Fixes
+
+- fix: an empty route path sends the base URL as written (70c861e)
+
 ## [2.7.0](https://github.com/dougyouch/apiroute/compare/v2.6.1...v2.7.0) (2026-10-29)
 
 ### Features
