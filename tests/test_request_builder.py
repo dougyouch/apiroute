@@ -111,3 +111,28 @@ def test_options_url_replaces_the_base_url_path_and_query():
 def test_options_url_carrying_the_client_query_keeps_its_own_value():
     spec = build("get_user", RequestOptions(url="https://x.test/v1/users?key=other"), id=1)
     assert spec.params == [("key", "other")]
+
+
+class PerUrl(Client):
+    """A client built per URL (an RSS feed): the route adds no path."""
+
+    @route("", returns="bytes")
+    def fetch(self): ...
+
+
+def test_an_empty_route_path_sends_the_base_url_as_written():
+    for url, sent in (
+        ("https://feeds.test/news/feed/", "https://feeds.test/news/feed/"),
+        ("https://feeds.test/?feed=rss2", "https://feeds.test/"),
+        ("https://feeds.test/rss.xml", "https://feeds.test/rss.xml"),
+    ):
+        client = PerUrl(base_url=url)
+        definition = vars(PerUrl)["fetch"].definition
+        spec = RequestBuilder(client._request_config(), client, RequestOptions()).build(
+            definition, {}
+        )
+        assert spec.url == sent
+
+
+def test_a_route_path_still_joins_a_base_url_with_a_trailing_slash_once():
+    assert build("update_user", id=7, body={}).url == "https://x.test/v1/users/7"

@@ -20,7 +20,9 @@ class RequestBuilder:
     base_url itself is kept and sent first. A with_options
     body is shallow-merged over the route's body when both are dicts, and replaces it otherwise.
     A with_options url replaces the base URL, path and query: only the client's own query
-    parameters (an API key) are added to it, when the URL doesn't carry them already.
+    parameters (an API key) are added to it, when the URL doesn't carry them already. An empty
+    route path ("") sends the base URL as written, trailing slash included: a client built per
+    URL (one feed, one webhook) must not have its URL changed.
     """
 
     def __init__(self, config: ClientConfig, root: Any, options: RequestOptions):
@@ -48,8 +50,8 @@ class RequestBuilder:
         if self._config.base_url is None:
             raise ValueError(f"{definition.name}: no base_url is configured")
         path = definition.path.render(resolve, self._root.escape_path)
-        base = urlsplit(self._config.base_url)._replace(query="", fragment="")
-        return urlunsplit(base).rstrip("/") + path
+        base = urlunsplit(urlsplit(self._config.base_url)._replace(query="", fragment=""))
+        return base.rstrip("/") + path if path else base
 
     def _headers(
         self, definition: RouteDefinition, values: Mapping[str, Any], content_type: str | None
