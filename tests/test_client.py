@@ -158,7 +158,7 @@ class QueryKeyedApi(Client):
 def test_a_query_string_in_base_url_reaches_the_wire_and_comes_first(transport, recorder):
     api = QueryKeyedApi(base_url="https://rpc.test/?api-key=k3y&flag", transport=transport)
     api.call({"method": "x"})
-    assert str(recorder.last.url) == "https://rpc.test?api-key=k3y&flag=&cluster=main"
+    assert str(recorder.last.url) == "https://rpc.test/?api-key=k3y&flag=&cluster=main"
     api.things(page=2)
     assert recorder.last.url.path == "/v1/things"
     assert list(recorder.last.url.params.multi_items()) == [
