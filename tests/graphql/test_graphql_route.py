@@ -1,7 +1,9 @@
 import asyncio
+import datetime
 import inspect
 import subprocess
 import sys
+import uuid
 from dataclasses import dataclass
 
 import httpx
@@ -317,3 +319,24 @@ def test_an_unmatched_operation_is_named(github, mock):
 def test_importing_apiroute_doesnt_import_graphql_core():
     code = "import sys, apiroute; assert 'graphql' not in sys.modules"
     subprocess.run([sys.executable, "-c", code], check=True)
+
+
+def test_a_route_called_with_an_id_and_a_timestamp_sends_them_as_json(mock):
+    class Api(Client):
+        base_url = "https://x.test"
+
+        @graphql_route(
+            "query Node($id: ID!, $since: DateTime) { node(id: $id) { id } }", data="node"
+        )
+        def node(self, id: uuid.UUID, since: datetime.datetime | None = None) -> dict: ...
+
+    mock.respond(graphql_response(data={"node": {"id": "x"}}))
+
+    Api(transport=mock, async_transport=mock.aio).node(
+        uuid.UUID("12345678-1234-5678-1234-567812345678"), datetime.datetime(2026, 1, 2, 3, 4, 5)
+    )
+
+    assert mock.last.graphql_variables == {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "since": "2026-01-02T03:04:05",
+    }

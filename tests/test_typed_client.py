@@ -1,3 +1,6 @@
+import datetime
+import uuid
+
 import httpx
 import pytest
 
@@ -143,3 +146,32 @@ def test_files_in_request_models_stay_files_and_the_rest_is_json_ready():
     }
     assert stream.tell() == 0  # wrapped, not read while dumping the model
     assert wrapped.part() == ("upload", b"y", "application/octet-stream")
+
+
+def test_bare_values_a_model_would_have_converted_go_out_as_json(
+    transport, async_transport, recorder
+):
+    """A request model's UUIDs and datetimes become JSON; the same values passed as plain arguments
+    must too, since a generated signature that says UUID accepts one."""
+
+    class Lookup(Client):
+        base_url = "https://x.test"
+
+        @route("POST", "/lookups")
+        def find(self, body): ...
+
+    class LookupModels(TypedClient):
+        def find(self, *, id: uuid.UUID, since: datetime.datetime) -> dict:
+            return self._call("find", dict, body={"id": id, "since": since})
+
+    recorder.respond(httpx.Response(200, json={}))
+    models = LookupModels(Lookup(transport=transport, async_transport=async_transport))
+
+    models.find(
+        id=uuid.UUID("12345678-1234-5678-1234-567812345678"), since=datetime.datetime(2026, 1, 2)
+    )
+
+    assert recorder.last_json() == {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "since": "2026-01-02T00:00:00",
+    }

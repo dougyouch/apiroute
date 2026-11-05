@@ -1,4 +1,6 @@
+import datetime
 import json
+import uuid
 
 from apiroute.graphql import GraphQLBody
 
@@ -54,3 +56,15 @@ def test_a_persisted_upload_carries_the_extensions_in_operations():
     assert "query" not in operations
     assert operations["extensions"]["persistedQuery"]["sha256Hash"] == body.sha256
     assert operations["variables"] == {"f": None}
+
+
+def test_variables_may_be_ids_and_timestamps():
+    content, _ = GraphQLBody("query A($id: ID!, $at: DateTime) { a }", "A")(
+        None,
+        {"id": uuid.UUID("12345678-1234-5678-1234-567812345678"), "at": datetime.date(2026, 1, 2)},
+    )
+
+    assert json.loads(content)["variables"] == {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "at": "2026-01-02",
+    }

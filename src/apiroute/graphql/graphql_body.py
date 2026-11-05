@@ -3,6 +3,7 @@ import json
 from typing import Any
 
 from apiroute.graphql.graphql_uploads import GraphQLUploads
+from apiroute.json_default import json_default
 from apiroute.multipart_encoder import MultipartEncoder
 
 CONTENT_TYPE = "application/json"
@@ -47,12 +48,15 @@ class GraphQLBody:
         uploads = GraphQLUploads(payload["variables"])
         if uploads:
             return _multipart(payload, uploads)
-        return json.dumps(payload).encode(), CONTENT_TYPE
+        return json.dumps(payload, default=json_default).encode(), CONTENT_TYPE
 
 
 def _multipart(payload: dict[str, Any], uploads: GraphQLUploads) -> tuple[bytes, str]:
     """The GraphQL multipart request spec: operations (the payload, files as null), map,
     then one part per file, in that order."""
     operations = {**payload, "variables": uploads.variables}
-    fields = {"operations": json.dumps(operations), "map": json.dumps(uploads.map())}
+    fields = {
+        "operations": json.dumps(operations, default=json_default),
+        "map": json.dumps(uploads.map()),
+    }
     return MultipartEncoder().encode({**fields, **uploads.files()})

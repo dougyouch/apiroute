@@ -1,8 +1,11 @@
+import enum
 import io
 from collections.abc import Mapping
 from typing import Any
 
 import httpx
+
+from apiroute.text_value import text_value
 
 
 class MultipartEncoder:
@@ -29,8 +32,8 @@ def _is_file(value: Any) -> bool:
 
 
 def _field_value(value: Any) -> Any:
-    if isinstance(value, bool):
-        return "true" if value else "false"
     if isinstance(value, list):
         return [_field_value(item) for item in value]
-    return value
+    if isinstance(value, (str, int, float)) and not isinstance(value, (bool, enum.Enum)):
+        return value  # httpx writes these as they are
+    return text_value(value)
