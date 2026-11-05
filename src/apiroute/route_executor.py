@@ -17,6 +17,9 @@ from apiroute.retry_policy import RetryPolicy
 from apiroute.retry_runner import RetryRunner
 from apiroute.route_definition import RouteDefinition
 from apiroute.stream_reader import StreamReader
+from apiroute.streaming.async_stream_reconnector import AsyncStreamReconnector
+from apiroute.streaming.stream_decoders import RECONNECTING_STREAMS
+from apiroute.streaming.stream_reconnector import StreamReconnector
 from apiroute.unsent_retry_filter import UnsentRetryFilter
 
 
@@ -38,10 +41,19 @@ class RouteExecutor:
         runner = RetryRunner(policy, self._root._sleep)
         if self._definition.stream is None:
             return runner.run(lambda: self._read(self._send(transport, spec)))
-        # Only opening the stream is retried; once the body starts, a failure is raised
+        # Only opening the stream is retried; once the body starts, a failure is raised (or,
+        # for an event stream, reconnected as the policy allows)
         stream = self._stream_reader(values)
-        response, stack = runner.run(lambda: self._open(stream, transport, spec))
-        return stream.consume(response, stack)
+
+        def open_stream(resume_headers: dict[str, str]) -> Any:
+            request = _with_headers(spec, resume_headers)
+            return runner.run(lambda: self._open(stream, transport, request))
+
+        response, stack = open_stream({})
+        reconnector = None
+        if self._definition.stream in RECONNECTING_STREAMS:
+            reconnector = StreamReconnector(policy, self._root._sleep, open_stream)
+        return stream.consume(response, stack, reconnector)
 
     async def execute_async(self, values: Mapping[str, Any]) -> Any:
         spec, policy = self._prepare(values)
@@ -57,15 +69,23 @@ class RouteExecutor:
             return await runner.run(attempt)
         stream = self._stream_reader(values)
 
-        async def open_stream() -> Any:
-            hooked = self._before(spec)
-            started = time.perf_counter()
-            opened = await stream.open_async(transport, hooked)
-            self._after(hooked, opened[0], started)
-            return opened
+        async def open_stream(resume_headers: dict[str, str]) -> Any:
+            request = _with_headers(spec, resume_headers)
 
-        response, stack = await runner.run(open_stream)
-        return await stream.consume_async(response, stack)
+            async def open_once() -> Any:
+                hooked = self._before(request)
+                started = time.perf_counter()
+                opened = await stream.open_async(transport, hooked)
+                self._after(hooked, opened[0], started)
+                return opened
+
+            return await runner.run(open_once)
+
+        response, stack = await open_stream({})
+        reconnector = None
+        if self._definition.stream in RECONNECTING_STREAMS:
+            reconnector = AsyncStreamReconnector(policy, self._root._async_sleep, open_stream)
+        return await stream.consume_async(response, stack, reconnector)
 
     def _prepare(self, values: Mapping[str, Any]) -> tuple[RequestSpec, RetryPolicy]:
         config = self._router._request_config()
@@ -105,7 +125,10 @@ class RouteExecutor:
 
     def _stream_reader(self, values: Mapping[str, Any]) -> StreamReader:
         destination = values.get(self._definition.stream_param)
-        return StreamReader(self._response_reader(), self._definition.stream, destination)
+        definition = self._definition
+        return StreamReader(
+            self._response_reader(), definition.stream, destination, definition.converter
+        )
 
     def _send(self, transport: Any, spec: RequestSpec) -> httpx.Response:
         hooked = self._before(spec)
@@ -136,3 +159,8 @@ class RouteExecutor:
         if isinstance(retries, int):
             return replace(config.retries, attempts=retries)
         return retries
+
+
+def _with_headers(spec: RequestSpec, headers: dict[str, str]) -> RequestSpec:
+    """The request with these headers added, e.g. Last-Event-ID when a stream resumes."""
+    return replace(spec, headers={**spec.headers, **headers}) if headers else spec

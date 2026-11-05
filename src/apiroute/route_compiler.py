@@ -25,7 +25,14 @@ _VARIADIC = (inspect.Parameter.VAR_POSITIONAL, inspect.Parameter.VAR_KEYWORD)
 SAFE_METHODS = frozenset({"GET", "HEAD", "OPTIONS"})
 
 # Stream modes, and the parameter each takes its destination from
-STREAM_PARAMS = {"file": "file", "io": "io", "iter": None}
+STREAM_PARAMS = {
+    "file": "file",
+    "io": "io",
+    "iter": None,
+    "lines": None,
+    "ndjson": None,
+    "sse": None,
+}
 
 
 class RouteCompiler:
@@ -201,6 +208,10 @@ class RouteCompiler:
         return strategy
 
     def _converter(self, signature: inspect.Signature, result_param: str | None) -> Any:
+        if self._spec.stream == "ndjson":
+            if self._spec.returns != "json":
+                raise ValueError("stream='ndjson' reads JSON values; it can't take returns=")
+            return ItemConverter(self._spec.model, self._func)
         if self._spec.paginate is not None:
             return ItemConverter(self._spec.model, self._func)
         model = self._model(signature, result_param)

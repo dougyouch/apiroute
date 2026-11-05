@@ -35,7 +35,10 @@ def route(
 
     Without a method, it is inferred from the route's name (create_user is a POST).
     stream="file" writes the body to the path in a `file` parameter, stream="io" to the
-    writable object in an `io` parameter, and stream="iter" returns the chunks.
+    writable object in an `io` parameter, and stream="iter" returns the chunks. stream="lines",
+    "ndjson" and "sse" return an iterator of the body's lines, JSON values (converted like
+    paginated items, by model= or an Iterator[X] return annotation) or ServerSentEvents, each
+    as it arrives; an SSE stream reconnects after an error mid-body as retries allow.
     model converts the JSON response (a pydantic model or dataclass, or a list of them);
     on a def, the return annotation does the same. headers are sent with this route, after
     the class's, and may hold {name} placeholders. body_format ("json", "form", "multipart"
