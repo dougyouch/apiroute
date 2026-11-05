@@ -11,10 +11,11 @@ Guidance for AI coding agents (and people) working in this repository.
 | Path | What it is |
 | --- | --- |
 | `src/apiroute/` | The runtime library: `Client`, `Section`, `@route`, retries, request building, response conversion |
+| `src/apiroute/streaming/` | `stream="lines"`, `"ndjson"` and `"sse"`: line splitting, the decoders, `EventIterator` and SSE reconnection |
 | `src/apiroute/graphql/` | `graphql_route` for hand-written GraphQL operations: document reading, variable binding, `GraphQLBody`, `GraphQLDecoder`, `GraphQLError` |
 | `src/apiroute/testing/` | Test helpers for code using apiroute clients: `MockTransport`, `mock_transport()`, `block_network()`, and the pytest plugin registered in `pyproject.toml` |
 | `src/apiroute/codegen/` | The generator behind the `apiroute` CLI (`cli.py`), with `openapi/`, `wsdl/` and `graphql/` front ends (readers that build an `ApiDefinition`) and the emitters that write client code |
-| `tests/` | One test module per runtime class; `tests/codegen/`, `tests/graphql/`, `tests/soap/`, `tests/testing/` and `tests/transports/` cover the generator, GraphQL, SOAP, the test helpers and transports |
+| `tests/` | One test module per runtime class; `tests/codegen/`, `tests/graphql/`, `tests/soap/`, `tests/streaming/`, `tests/testing/` and `tests/transports/` cover the generator, GraphQL, SOAP, stream decoding, the test helpers and transports |
 | `.github/workflows/` | `ci.yml` (pull requests, and before each release) and `release.yml` (every push to main: tag, PyPI, GitHub release) |
 | `scripts/next_release.py` | Works out each release's version and notes from the commits since the last tag, and adds them to CHANGELOG.md |
 | `.agent/skills/apiroute-client.md` | Skill for creating and maintaining repositories of generated clients for any API |

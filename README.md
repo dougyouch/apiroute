@@ -6,6 +6,7 @@ Build API clients declaratively: one `@route` per endpoint, safe defaults, [http
 - **GraphQL built for hand-written queries.** You write the query, apiroute checks it against the API's schema when the class is created, fills its variables from the method's arguments, unwraps `data`, raises `GraphQLError` with any partial data, and won't re-send a mutation that may already have run.
 - **Pagination for any API.** `paginate=ItemCursor()`, `NextUrl()`, `Cursor(...)`, `PageNumber()` or `Offset()` turns a list route into a lazy iterator over every page's items, sync or async, with guards against endless loops and against next-page URLs on other hosts.
 - **Retries you can trust.** Exponential backoff with jitter and `Retry-After` support, and a `should_retry` hook for anything else.
+- **Event streams.** `stream="sse"`, `"ndjson"` or `"lines"` yields server-sent events, JSON values or lines as they arrive, and an SSE stream reconnects with `Last-Event-ID`.
 - **Typed results.** A return annotation turns JSON into a pydantic model or a dataclass.
 - **Sync and async from the same class.** `client.get_user(...)` or `await client.aio.get_user(...)`.
 - **Testing included.** `MockTransport` answers requests by operation name, path or predicate, `block_network()` stops real calls, and a pytest plugin provides both as fixtures.
@@ -129,6 +130,9 @@ For type checkers, mark the parameter with its default instead: `*, data: dict =
 | `"file"` | the path in a `file` parameter, written `wb` | the `httpx.Response` |
 | `"io"` | the writable object in an `io` parameter, left open | the `httpx.Response` |
 | `"iter"` | none | a `ChunkIterator` of `bytes` (an `AsyncChunkIterator` through `.aio`) |
+| `"lines"` | none | an `EventIterator` of the body's lines as `str`, in its declared charset, else UTF-8 (an `AsyncEventIterator` through `.aio`) |
+| `"ndjson"` | none | an `EventIterator` of JSON values, one per line (blank lines skipped) |
+| `"sse"` | none | an `EventIterator` of `ServerSentEvent`s from a `text/event-stream` body |
 
 ```python
 @route("/files/{id}", stream="file")
@@ -144,6 +148,37 @@ with gh.get_events() as events:  # stream="iter"; the with block closes the conn
 - File paths with a null byte or a `..` segment are rejected before the request is sent, as in the Ruby gem. Absolute paths are allowed.
 - Opening the stream is retried like any request; a failure while the body is being read is raised, not retried.
 - In async calls, an `io` object whose `write` returns an awaitable (such as an aiofiles file) is awaited.
+
+#### Lines, NDJSON and server-sent events
+
+`stream="lines"`, `"ndjson"` and `"sse"` decode the body as it arrives. Each item is yielded as soon as its line (or, for SSE, its event) is complete, so a chat completion or a log tail can be shown while it streams:
+
+```python
+from apiroute.streaming import ServerSentEvent
+
+
+class Llm(Client):
+    base_url = "https://api.example.com"
+    timeout = None  # a stream may sit idle longer than a request should
+
+    @route("POST", "/v1/chat", stream="sse")
+    def chat(self, body: dict) -> Iterator[ServerSentEvent]: ...
+
+    @route("/v1/jobs/{id}/log", stream="ndjson")
+    def job_log(self, id: str) -> Iterator[LogLine]: ...  # each line becomes a LogLine
+
+
+with llm.chat({"messages": [...]}) as events:
+    for event in events:
+        if event.data == "[DONE]":
+            break
+        print(event.json()["delta"], end="")
+```
+
+- **`ServerSentEvent`** has `data` (its `data:` lines joined with newlines), `event` (`"message"` unless the event names one), `id` (the last event ID the stream set) and `json()`. Events are parsed as the HTML standard says: comments and events without data are skipped, and an event the body ends in the middle of is dropped.
+- **NDJSON values are converted like paginated items:** by `model=`, or by `X` in an `Iterator[X]` return annotation. A line that isn't JSON raises `json.JSONDecodeError` after the values before it have been yielded.
+- **Reconnecting.** When an SSE stream's connection fails mid-body, it reconnects as the route's `retries` allow: the same request, sent with `Last-Event-ID` set to the last event ID received, after the backoff delay or the server's `retry:` time, whichever is longer. Failures are counted from one again after each event, and a `204` answer ends the stream. As with retries, a route that isn't idempotent (a `POST`, unless it says `idempotent=True`) never reconnects, since that would send it again. A body that ends cleanly is the end of the stream; lines and NDJSON streams never reconnect.
+- **Closing.** Like `stream="iter"`, the connection stays open until the body ends or the iterator is closed; use a `with` block (`async with` through `.aio`) to close it when you stop early.
 
 ### Typed returns
 

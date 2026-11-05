@@ -10,19 +10,24 @@ from apiroute.chunk_iterator import ChunkIterator
 from apiroute.request_spec import RequestSpec
 from apiroute.response_reader import ResponseReader
 from apiroute.stream_path_validator import validate_stream_path
+from apiroute.streaming.async_event_iterator import AsyncEventIterator
+from apiroute.streaming.event_iterator import EventIterator
+from apiroute.streaming.stream_decoders import STREAM_DECODERS
 
 
 class StreamReader:
     """Opens a streamed response, checks its status before any body is read, then hands the
-    body to a file, a writable object or an iterator.
+    body to a file, a writable object, an iterator of chunks, or an iterator of the lines,
+    JSON values or events decoded from it.
 
     A rejected response's body is read in full instead, so UnexpectedResponse can show it,
     and nothing is written: an existing file is left untouched.
     """
 
-    def __init__(self, status: ResponseReader, mode: str, destination: Any):
+    def __init__(self, status: ResponseReader, mode: str, destination: Any, converter: Any = None):
         self._status = status
         self._mode = mode
+        self._converter = converter
         # A bad path fails here, before the request is sent
         self._destination = validate_stream_path(destination) if mode == "file" else destination
 
@@ -38,9 +43,11 @@ class StreamReader:
             raise
         return response, stack
 
-    def consume(self, response: httpx.Response, stack: ExitStack) -> Any:
+    def consume(self, response: httpx.Response, stack: ExitStack, reconnector: Any = None) -> Any:
         if self._mode == "iter":
             return ChunkIterator(response, stack)
+        if self._mode in STREAM_DECODERS:
+            return EventIterator(response, stack, self._decoder(), reconnector)
         with stack, self._writer() as write:
             for chunk in response.iter_bytes():
                 write(chunk)
@@ -60,9 +67,13 @@ class StreamReader:
             raise
         return response, stack
 
-    async def consume_async(self, response: httpx.Response, stack: AsyncExitStack) -> Any:
+    async def consume_async(
+        self, response: httpx.Response, stack: AsyncExitStack, reconnector: Any = None
+    ) -> Any:
         if self._mode == "iter":
             return AsyncChunkIterator(response, stack)
+        if self._mode in STREAM_DECODERS:
+            return AsyncEventIterator(response, stack, self._decoder(), reconnector)
         async with stack:
             with self._writer() as write:
                 async for chunk in response.aiter_bytes():
@@ -70,6 +81,9 @@ class StreamReader:
                     if inspect.isawaitable(written):  # e.g. an aiofiles file
                         await written
         return response
+
+    def _decoder(self) -> Any:
+        return STREAM_DECODERS[self._mode](self._converter)
 
     @contextmanager
     def _writer(self) -> Iterator[Callable[[bytes], Any]]:
