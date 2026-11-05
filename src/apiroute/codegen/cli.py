@@ -20,7 +20,37 @@ def main(argv: list[str] | None = None) -> int:
     arguments = _parser().parse_args(argv)
     if arguments.command == "fetch-schema":
         return _fetch_schema(arguments)
+    if arguments.command == "diff":
+        return _diff(arguments)
     return _generate(arguments)
+
+
+# apiroute diff --fail-on-breaking: the exit status when there are breaking changes (errors
+# exit 1)
+BREAKING_EXIT = 2
+
+
+def _diff(arguments: argparse.Namespace) -> int:
+    from apiroute.codegen.diff.api_differ import ApiDiffer
+    from apiroute.codegen.diff.diff_report import DiffReport
+    from apiroute.codegen.openapi.openapi_reader import OpenApiReader
+
+    try:
+        names = (
+            OperationNames.load(arguments.operation_names) if arguments.operation_names else None
+        )
+        definitions = []
+        for spec in (arguments.old, arguments.new):
+            definition = OpenApiReader(spec, "Api", discriminators=arguments.discriminators).read()
+            if names is not None:
+                names.apply(definition)
+            definitions.append(definition)
+    except (OSError, ValueError, KeyError, RuntimeError, httpx.HTTPError) as error:
+        print(f"apiroute: {type(error).__name__}: {error}", file=sys.stderr)
+        return 1
+    report = DiffReport(ApiDiffer(*definitions).changes())
+    sys.stdout.write(report.json() if arguments.format == "json" else report.text())
+    return BREAKING_EXIT if arguments.fail_on_breaking and report.breaking else 0
 
 
 def _generate(arguments: argparse.Namespace) -> int:
@@ -190,6 +220,32 @@ def _parser() -> argparse.ArgumentParser:
         "the document on a miss)",
     )
     _add_header_option(graphql, "for introspecting a schema endpoint")
+    diff = commands.add_parser(
+        "diff",
+        help="report what changes in a generated client between two versions of a spec",
+        description="Compare two OpenAPI/Swagger specs (files or URLs) as generated clients: "
+        "breaking changes (removed or renamed methods, new required parameters, removed or "
+        "retyped fields ...), additions, and the conventional commit type they call for.",
+    )
+    diff.add_argument("old", help="the spec the client was generated from")
+    diff.add_argument("new", help="the spec it will be generated from")
+    diff.add_argument("--format", choices=("text", "json"), default="text")
+    diff.add_argument(
+        "--fail-on-breaking",
+        action="store_true",
+        help=f"exit with status {BREAKING_EXIT} when there are breaking changes",
+    )
+    diff.add_argument(
+        "--operation-names",
+        metavar="FILE",
+        help="the --operation-names file the client is generated with, so methods compare by "
+        "the names it gives them",
+    )
+    diff.add_argument(
+        "--discriminators",
+        action="store_true",
+        help="compare models as generated with --discriminators",
+    )
     fetch = commands.add_parser(
         "fetch-schema",
         help="save a GraphQL endpoint's schema by introspection",

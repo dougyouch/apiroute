@@ -167,7 +167,7 @@ Copy them from an existing client repository ([github-apiroute](https://github.c
   2. `scripts/generate.py --fetch`.
   3. Lint and test.
   4. If `git status` shows changes, commit and push to main:
-     - `feat(specs): update clients from <API>'s latest specs` when `specs/` changed (a minor release)
+     - when `specs/` changed, the type `apiroute diff <old spec> <new spec> --format json` gives as `commit_type` for the OpenAPI specs (compare the committed spec, from `git show HEAD:specs/<name>`, with the fetched one, passing the API's `--operation-names` and `--discriminators`): `feat(specs)!: update clients from <API>'s latest specs` when it's `feat!` (a major release, listing the breaking changes in the commit body), else `feat(specs): ...` (a minor release). For WSDL and GraphQL specs, use `feat(specs):`
      - otherwise `fix(codegen): regenerate clients with apiroute <version>` (a patch)
 
   It needs `permissions: contents: write`. If `main` is protected, give the workflow a bypass or have it open a PR instead. A GraphQL API whose introspection needs a token gets it from a repository secret, exposed to the fetch step as the environment variable `spec_headers` names.
