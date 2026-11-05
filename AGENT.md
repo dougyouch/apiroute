@@ -13,10 +13,11 @@ Guidance for AI coding agents (and people) working in this repository.
 | `src/apiroute/` | The runtime library: `Client`, `Section`, `@route`, retries, request building, response conversion |
 | `src/apiroute/auth/` | Credentials that refresh: `Authenticator`, `TokenAuthenticator`, the OAuth 2.0 client credentials and refresh token grants, and `AuthAttempts`, which the route executor uses to send again after a 401 |
 | `src/apiroute/streaming/` | `stream="lines"`, `"ndjson"` and `"sse"`: line splitting, the decoders, `EventIterator` and SSE reconnection |
+| `src/apiroute/rate_limiting/`, `caching/`, `telemetry/` | The `rate_limiter`, `conditional_cache` and `telemetry` settings, each a transport wrapper that `TransportPipeline` puts around a call's transport |
 | `src/apiroute/graphql/` | `graphql_route` for hand-written GraphQL operations: document reading, variable binding, `GraphQLBody`, `GraphQLDecoder`, `GraphQLError` |
 | `src/apiroute/testing/` | Test helpers for code using apiroute clients: `MockTransport`, `mock_transport()`, `block_network()`, and the pytest plugin registered in `pyproject.toml` |
 | `src/apiroute/codegen/` | The generator behind the `apiroute` CLI (`cli.py`), with `openapi/`, `wsdl/` and `graphql/` front ends (readers that build an `ApiDefinition`) and the emitters that write client code |
-| `tests/` | One test module per runtime class; `tests/auth/`, `tests/codegen/`, `tests/graphql/`, `tests/soap/`, `tests/streaming/`, `tests/testing/` and `tests/transports/` cover authenticators, the generator, GraphQL, SOAP, stream decoding, the test helpers and transports |
+| `tests/` | One test module per runtime class; `tests/auth/`, `tests/caching/`, `tests/codegen/`, `tests/graphql/`, `tests/rate_limiting/`, `tests/soap/`, `tests/streaming/`, `tests/telemetry/`, `tests/testing/` and `tests/transports/` cover authenticators, the conditional cache, the generator, GraphQL, rate limiting, SOAP, stream decoding, tracing, the test helpers and transports |
 | `.github/workflows/` | `ci.yml` (pull requests, and before each release) and `release.yml` (every push to main: tag, PyPI, GitHub release) |
 | `scripts/next_release.py` | Works out each release's version and notes from the commits since the last tag, and adds them to CHANGELOG.md |
 | `.agent/skills/apiroute-client.md` | Skill for creating and maintaining repositories of generated clients for any API |
@@ -25,7 +26,7 @@ Guidance for AI coding agents (and people) working in this repository.
 
 - **Follow the existing style:** one class per file, small methods, and names that match the surrounding modules. Ruff enforces `E`, `F`, `I`, `B` and `UP` at line length 100.
 - **Support Python 3.10 and newer.** Don't use syntax or stdlib features from later versions.
-- **Keep optional dependencies optional.** The runtime depends only on `httpx`. pydantic, defusedxml (SOAP), graphql-core (GraphQL syntax checks) and pyyaml (codegen) sit behind the `pydantic`, `soap`, `graphql` and `codegen` extras, so import them lazily.
+- **Keep optional dependencies optional.** The runtime depends only on `httpx`. pydantic, defusedxml (SOAP), graphql-core (GraphQL syntax checks), opentelemetry-api (tracing) and pyyaml (codegen) sit behind the `pydantic`, `soap`, `graphql`, `otel` and `codegen` extras, so import them lazily.
 - **Generated output is a public interface.** Downstream repositories regenerate their clients with each apiroute release, so a change to the emitters changes their code. Cover it in `tests/codegen/`.
 - **Every merge to main is a release.** There's no release PR; `release.yml` tests, tags and publishes each push to main. Merge only what's ready to ship.
 - **Use conventional commits.** The version comes from the commits since the last tag:

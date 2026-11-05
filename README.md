@@ -7,6 +7,7 @@ Build API clients declaratively: one `@route` per endpoint, safe defaults, [http
 - **Pagination for any API.** `paginate=ItemCursor()`, `NextUrl()`, `Cursor(...)`, `PageNumber()` or `Offset()` turns a list route into a lazy iterator over every page's items, sync or async, with guards against endless loops and against next-page URLs on other hosts.
 - **Retries you can trust.** Exponential backoff with jitter and `Retry-After` support, and a `should_retry` hook for anything else.
 - **Tokens that refresh themselves.** `OAuth2ClientCredentials` and `OAuth2RefreshToken` fetch a token, renew it before it expires, and after a 401 refresh it and send the request once more.
+- **Rate limits, revalidation and tracing.** `rate_limiter=` waits instead of getting a 429, `conditional_cache=` revalidates GETs with ETags, and `telemetry=` traces each attempt with OpenTelemetry.
 - **Event streams.** `stream="sse"`, `"ndjson"` or `"lines"` yields server-sent events, JSON values or lines as they arrive, and an SSE stream reconnects with `Last-Event-ID`.
 - **Typed results.** A return annotation turns JSON into a pydantic model or a dataclass.
 - **Sync and async from the same class.** `client.get_user(...)` or `await client.aio.get_user(...)`.
@@ -43,6 +44,7 @@ pip install apiroute[pydantic]  # to return pydantic models
 pip install apiroute[codegen]   # to generate clients from OpenAPI/Swagger specs, WSDLs and GraphQL schemas
 pip install apiroute[soap]      # to run generated SOAP clients
 pip install apiroute[graphql]   # to check GraphQL documents against the API's schema when a class is created
+pip install apiroute[otel]      # to trace requests with OpenTelemetry
 ```
 
 apiroute needs Python 3.10 or newer, and httpx.
@@ -376,6 +378,49 @@ retries = Retries(attempts=5, sleep=0.1, backoff=2, max_sleep=10, jitter=True)
   ```
 - `with_options(retries=3)` changes the attempts for one call; `with_options(retries=Retries(...))` replaces the policy.
 
+## Rate limits, conditional requests and tracing
+
+Three class settings work on every request a client sends, its retries, pages and stream reconnects included. A section uses its client's unless it sets its own (or `None`).
+
+```python
+from apiroute.caching import ConditionalCache
+from apiroute.rate_limiting import RateLimiter
+from apiroute.telemetry import OpenTelemetry
+
+
+class GitHub(Client):
+    base_url = "https://api.github.com"
+    rate_limiter = RateLimiter(requests=10, per=1.0, headers=True)
+    conditional_cache = ConditionalCache()
+    telemetry = OpenTelemetry()
+```
+
+### Rate limiting
+
+`RateLimiter` waits before a request rather than sending it and getting a `429`. This matters most for loops and for paginated routes, which can burst through a quota.
+
+- **`requests` per `per` seconds** is a token bucket holding `burst` requests (default: `requests`). Up to `burst` requests go at once, and the rest are spaced out. A request that finds the bucket empty still takes its turn, so waiting requests go in order.
+- **`headers=True`** follows the server's own counters. When a response says the quota is spent, every request waits until it resets. It reads the IETF `RateLimit` field (`r=0;t=30`), `RateLimit-Remaining`/`RateLimit-Reset`, and `X-RateLimit-Remaining`/`X-RateLimit-Reset`, whose reset may be seconds or a Unix time. After a `429` or `503` with `Retry-After`, every request waits that long, not just the retry. Use either option, or both.
+- **One `RateLimiter` is one budget**, shared by every thread and event loop that uses it. As a class attribute it limits every instance together; give instances their own for separate budgets. Budgets are per process.
+- **Waits go through the same sleep as retries**, so `apiroute.testing`'s `recorded_sleeps()` and `mock_transport()` record them instead of waiting.
+
+### Conditional requests
+
+`ConditionalCache` keeps `200` GET responses that have an `ETag` or `Last-Modified` header. The next GET of the same URL sends `If-None-Match` or `If-Modified-Since`, and a `304` answer returns the kept body as a `200`, converted to the route's model as usual. On GitHub, a `304` doesn't count against the rate limit.
+
+- **Responses are kept per URL (query included) and per `Authorization` and `Cookie` header**, so one caller never gets another's. They're also matched on the request headers the response's `Vary` names. `Cache-Control: no-store`, `Vary: *`, streams, and requests you made conditional yourself aren't cached.
+- **A revalidated response** has the `304`'s headers over the kept ones (a new `Date`, fresh rate limit counters), and `response.extensions["apiroute_cache"] == "revalidated"`. Hooks see it as a `200`.
+- **It holds `max_entries` responses** (default 1,024), dropping the least recently used, in memory. It's safe to share between threads and instances, and `clear()` empties it.
+
+### Tracing with OpenTelemetry
+
+`OpenTelemetry()` (from the `otel` extra) makes each request attempt a client span.
+
+- **The span is named after the request's operation**: the route's `operation=`, an OpenAPI `operationId`, or the method name.
+- **Its attributes follow OpenTelemetry's HTTP conventions:** `http.request.method`, `url.full` (as `redact_url` shows it, so secrets in the query are masked), `server.address`, `server.port` and `http.response.status_code`.
+- **Errors:** a `4xx` or `5xx` status, or an exception, marks the span as an error with `error.type`. Retries are separate spans, and a stream's span ends once its status is in.
+- **Context:** spans nest under the caller's current span, and the trace context is sent with each request (`traceparent`) unless `propagate=False`. Spans come from the global tracer provider unless you pass `tracer_provider`.
+
 ## Authentication that refreshes
 
 Static credentials go in `headers` or `query_params`. For tokens that expire, set the client's `authenticator`: before every attempt it supplies the current credential, and when the API answers `401` it fetches a fresh one and sends the request once more. That resend isn't counted as a retry, and a second `401` is raised.
@@ -639,6 +684,7 @@ The first four, and `AuthError`, derive from `ApiRouteError`. `client.last_respo
 | `body_format` | `"json"`, `"form"` or `callable(client, data)` |
 | `query_format` | `"flat"`, `"nested"` (`a[b]=1`) or `callable(client, data)` returning pairs |
 | `authenticator` | `None`. An `apiroute.auth` authenticator that applies a changing credential to every request and refreshes it after a 401; see [Authentication that refreshes](#authentication-that-refreshes). Usually set in `__init__` |
+| `rate_limiter`, `conditional_cache`, `telemetry` | `None`. A `RateLimiter`, `ConditionalCache` or `OpenTelemetry`; see [Rate limits, conditional requests and tracing](#rate-limits-conditional-requests-and-tracing). A section uses its client's unless it sets its own |
 | `follow_redirects` | `None`: the transport's httpx setting (httpx doesn't follow). `True` follows 3xx answers for this API whatever the transport; a section uses its parent's unless it sets one |
 
 ### Methods to override

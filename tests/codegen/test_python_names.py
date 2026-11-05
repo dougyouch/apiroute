@@ -50,6 +50,9 @@ def test_client_hooks_and_settings_are_reserved():
         "redact_url",
         "soap_header",
         "authenticator",
+        "rate_limiter",
+        "conditional_cache",
+        "telemetry",
     ]
     assert [unique(name, taken) for name in names] == [f"{name}_2" for name in names]
 
