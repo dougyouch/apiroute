@@ -4,6 +4,18 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.10.0](https://github.com/dougyouch/apiroute/compare/v2.9.0...v2.10.0) (2026-11-05)
+
+### Features
+
+- feat(codegen): apiroute diff reports what changes in a generated client (6c95aff)
+- feat(testing): record and replay cassettes, and check mocks against the spec (f29d9dc)
+- feat: verify and parse webhooks, and generate their payload parsers (4ebcf39)
+- feat(codegen): --discriminators generates tagged unions (e000c9d)
+- feat: poll= waits for long-running operations to finish (938b139)
+- feat: rate_limiter, conditional_cache and telemetry client settings (b68288a)
+- feat: TokenAuthenticator.seed, AccessToken(expires_at=) and shared_transports() (e55c8be)
+
 ## [2.9.0](https://github.com/dougyouch/apiroute/compare/v2.8.0...v2.9.0) (2026-11-05)
 
 ### Features
