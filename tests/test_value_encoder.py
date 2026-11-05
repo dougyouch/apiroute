@@ -11,10 +11,10 @@ import types
 import uuid
 import zoneinfo
 
-import pydantic
 import pytest
 
 from apiroute.value_encoder import VALUE_ENCODER
+from tests.conftest import needs_pydantic
 
 ID = uuid.UUID("12345678-1234-5678-1234-567812345678")
 
@@ -35,11 +35,6 @@ class ById(enum.Enum):
 class Window:
     start: datetime.date
     length: datetime.timedelta
-
-
-class Account(pydantic.BaseModel):
-    account_id: uuid.UUID = pydantic.Field(alias="accountId")
-    note: str | None = None
 
 
 def dumps(value):
@@ -100,7 +95,14 @@ def test_a_dataclass_is_its_fields_converted_in_turn():
     assert json.loads(dumps(window)) == {"start": "2026-01-02", "length": "PT1H"}
 
 
+@needs_pydantic
 def test_a_pydantic_model_is_its_set_fields_by_wire_name():
+    import pydantic
+
+    class Account(pydantic.BaseModel):
+        account_id: uuid.UUID = pydantic.Field(alias="accountId")
+        note: str | None = None
+
     assert json.loads(dumps(Account(accountId=ID))) == {"accountId": str(ID)}
 
 
