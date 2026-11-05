@@ -25,6 +25,7 @@ def route(
     idempotency_key: str | bool | None = None,
     paginate: Any = None,
     check: Callable[[httpx.Response], Any] | None = None,
+    poll: Any = None,
 ) -> RouteDecorator:
     """Declares an endpoint, on a def or on its own:
 
@@ -63,6 +64,10 @@ def route(
     UnexpectedResponse, raise your own exception, or return None or a true value to accept:
 
         @route("/orders", check=lambda response: response.json()["status"] != "error")
+
+    poll, a Poll from apiroute.polling, waits for a long-running operation: a 202 Accepted with
+    a status URL is polled until the operation succeeds (its result is returned), fails
+    (OperationFailed) or runs out of time (PollTimeout).
     """
     method, path = _split(method_and_path)
     path = current_prefix() + path
@@ -84,6 +89,7 @@ def route(
         idempotency_key=idempotency_key,
         paginate=paginate,
         check=check,
+        poll=poll,
     )
     return RouteDecorator(spec)
 

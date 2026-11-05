@@ -315,6 +315,27 @@ async for customer in stripe.aio.customers():
   ```
 - A paginated route reads JSON pages itself, so it can't also take `returns=`, `stream=`, `decoder=` or a `Result` parameter.
 
+### Long-running operations
+
+Some APIs answer a request that takes a while with `202 Accepted` and a URL to check on it. `poll=Poll(...)` makes the method wait for the operation and return its result:
+
+```python
+from apiroute.polling import Poll
+
+
+class Reports(Client):
+    @route("POST", "/v1/exports", poll=Poll(interval=2, timeout=600))
+    def export(self, body: dict) -> Export: ...
+
+    @route("POST", "/v1/operations", poll=Poll(status="done", result="response", error="error"))
+    def start(self, body: dict) -> dict: ...  # Google's long-running operations
+```
+
+- **When it polls.** It polls when the response is a `202` with a status URL in `Operation-Location`, `Azure-AsyncOperation` or `Location`, or a `200` or `201` with either of the first two. Any other response is the result, as it would be without `poll=`. It GETs the status URL every `interval` seconds (or the response's `Retry-After`, when that's longer), and a later `202` may move the status URL.
+- **When it's done.** The operation is done when the status body's `status` field (a dotted path, `"status"` by default) is in `succeeded` (`"succeeded"`, `"completed"`, `"done"` ...; case doesn't matter) or is `true`. The result is that body, the value at the dotted path `result`, or the body at the URL the dotted path `result_url` names (Azure's `resourceLocation`). It's converted by the route's model or return annotation. A status body without a status field is the result too, and a `303 See Other` is followed to it.
+- **Failures.** A status in `failed` (`"failed"`, `"canceled"`, `"error"` ...), or a set `error` field, raises `apiroute.polling.OperationFailed`, with `.status`, `.body` and `.response`. Running past `timeout` seconds (default 600; `None` waits for ever) raises `PollTimeout`.
+- **Polls are ordinary requests.** They're GETs with the client's headers, auth, hooks, rate limiter and tracing, retried as reads are, even when the first request was a `POST` that isn't retried. A status URL on another host than the request's is refused rather than sent the client's credentials.
+
 ## Sections
 
 A nested class that subclasses `Section` groups routes under the client, as `client.<class name>`:
@@ -668,10 +689,11 @@ with mock_transport() as mock:
 | `ResponseValidationError` | the JSON doesn't fit the route's model | `.response`, `.error`, `.route_name` |
 | `GraphQLError` | a GraphQL response has `errors` | `.errors`, `.data`, `.codes`, `.response`, `.operation` |
 | `httpx.TransportError` subclasses | the network fails, after retries run out | httpx's details |
+| `OperationFailed`, `PollTimeout` (`apiroute.polling`) | a `poll=` route's operation failed, or didn't finish in time | `.status`, `.body`, `.response`; `.timeout`, `.url` |
 | `AuthError` (`apiroute.auth`) | a token endpoint refused to issue a token, or answered with something that isn't one | `.error`, `.description`, `.response` |
 | `ValueError` | a class setting is invalid (a `base_url` scheme, `body_format`, `inherit`), or a streamed file path is unsafe | the reason in its message |
 
-The first four, and `AuthError`, derive from `ApiRouteError`. `client.last_response` holds the most recent response for debugging; it is per client, so don't rely on it when one client is shared between threads.
+The first four, `OperationFailed`, `PollTimeout` and `AuthError` derive from `ApiRouteError`. `client.last_response` holds the most recent response for debugging; it is per client, so don't rely on it when one client is shared between threads.
 
 ## Class settings
 
