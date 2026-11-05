@@ -154,3 +154,35 @@ def test_unions_stay_plain_unless_asked_for():
     mapper.map({"$ref": "#/components/schemas/Pet"}, "x")
     assert models["Pet"].alias_of.expr == "Cat | Dog"
     assert field(models, "Cat", "pet_type").type.expr == "str"
+
+
+def test_members_whose_property_has_different_python_names_stay_plain():
+    models = {}
+    schemas = {
+        **SCHEMAS,
+        "Odd": {
+            "type": "object",
+            "properties": {"pet_type": {"type": "string"}, "petType": {"type": "string"}},
+        },
+    }
+    mapper = SchemaMapper(
+        RefResolver({"components": {"schemas": schemas}}, "spec.yaml"), models, discriminators=True
+    )
+    union = mapper.map(
+        {
+            "oneOf": [{"$ref": "#/components/schemas/Cat"}, {"$ref": "#/components/schemas/Odd"}],
+            "discriminator": {"propertyName": "petType"},
+        },
+        "U",
+    )
+    assert union.expr == "Cat | Odd"
+
+
+def test_mapping_entries_that_arent_text_are_skipped(mapper):
+    mapper, models = mapper
+    schema = {
+        "oneOf": [{"$ref": "#/components/schemas/Cat"}, {"$ref": "#/components/schemas/Dog"}],
+        "discriminator": {"propertyName": "petType", "mapping": {"cat": 7}},
+    }
+    mapper.map(schema, "U")
+    assert field(models, "Cat", "pet_type").type.expr == "Literal['Cat']"

@@ -142,6 +142,17 @@ class AuthScheme:
 
 
 @dataclass
+class Webhook:
+    """A webhook the API sends (OpenAPI 3.1 webhooks): what its payload parses into."""
+
+    name: str  # the Python function name, unique in the webhooks module
+    wire_name: str  # the spec's key for it, e.g. "newPet"
+    summary: str = ""
+    payload: TypeRef | None = None  # the model type; None when there is no JSON body
+    payload_plain: str = "Any"  # the dict layer's type
+
+
+@dataclass
 class ApiDefinition:
     """What a reader produces and the emitter writes: one generated package."""
 
@@ -159,3 +170,4 @@ class ApiDefinition:
     base_class: str | None = None
     # things the reader noticed that don't stop generation, e.g. a deprecated GraphQL field
     warnings: list[str] = field(default_factory=list)
+    webhooks: list[Webhook] = field(default_factory=list)

@@ -680,6 +680,36 @@ with mock_transport() as mock:
     assert mock.last.graphql_variables == {}
 ```
 
+## Webhooks
+
+`apiroute.webhooks` covers the requests an API sends you. Check the signature against the raw body before trusting it, then parse the payload:
+
+```python
+from apiroute.webhooks import StripeSignature, WebhookSignatureError
+
+stripe_signature = StripeSignature(os.environ["STRIPE_WEBHOOK_SECRET"])
+
+
+@app.post("/stripe")
+async def stripe_webhook(request):
+    body = await request.body()  # the raw bytes: re-encoded JSON won't match the signature
+    try:
+        stripe_signature.verify(request.headers, body)
+    except WebhookSignatureError:
+        return Response(status_code=400)
+    event = webhooks.invoice_paid(body)  # a generated parser; see below
+```
+
+| Class | Signs | Notes |
+| --- | --- | --- |
+| `HmacSignature(secret)` | an HMAC of the body in one header | GitHub by default (`X-Hub-Signature-256: sha256=<hex>`); `header=`, `prefix=`, `digest=` and `encoding="base64"` fit Shopify, Slack-style and other schemes. No timestamp, so it can't detect replays |
+| `StripeSignature(secret, tolerance=300)` | `Stripe-Signature: t=...,v1=...` over `"<t>.<body>"` | refuses timestamps more than `tolerance` seconds away |
+| `StandardWebhooksSignature(secret, tolerance=300)` | `webhook-id`, `webhook-timestamp`, `webhook-signature` (or `svix-*`) | the Standard Webhooks spec: Svix, Resend, Clerk, OpenAI and others; `secret` is `whsec_<base64>` |
+
+- **`verify(headers, body)`** raises `WebhookSignatureError` (an `ApiRouteError`) when the signature is missing, malformed, wrong or too old. `headers` is any mapping (header names aren't case-sensitive), and `body` is the raw bytes or text.
+- **Rotating secrets:** give a list, and a signature from any of them is accepted. Comparisons take constant time.
+- **`parse_payload(body, model=None)`** parses the JSON body, and converts it to `model` when given (a pydantic model, a dataclass, or a type holding them, such as `list[Event]`).
+
 ## Errors
 
 | Exception | Raised when | Carries |
@@ -689,11 +719,12 @@ with mock_transport() as mock:
 | `ResponseValidationError` | the JSON doesn't fit the route's model | `.response`, `.error`, `.route_name` |
 | `GraphQLError` | a GraphQL response has `errors` | `.errors`, `.data`, `.codes`, `.response`, `.operation` |
 | `httpx.TransportError` subclasses | the network fails, after retries run out | httpx's details |
+| `WebhookSignatureError` (`apiroute.webhooks`) | a webhook's signature is missing, wrong or too old | the reason in its message |
 | `OperationFailed`, `PollTimeout` (`apiroute.polling`) | a `poll=` route's operation failed, or didn't finish in time | `.status`, `.body`, `.response`; `.timeout`, `.url` |
 | `AuthError` (`apiroute.auth`) | a token endpoint refused to issue a token, or answered with something that isn't one | `.error`, `.description`, `.response` |
 | `ValueError` | a class setting is invalid (a `base_url` scheme, `body_format`, `inherit`), or a streamed file path is unsafe | the reason in its message |
 
-The first four, `OperationFailed`, `PollTimeout` and `AuthError` derive from `ApiRouteError`. `client.last_response` holds the most recent response for debugging; it is per client, so don't rely on it when one client is shared between threads.
+The first four, `WebhookSignatureError`, `OperationFailed`, `PollTimeout` and `AuthError` derive from `ApiRouteError`. `client.last_response` holds the most recent response for debugging; it is per client, so don't rely on it when one client is shared between threads.
 
 ## Class settings
 
@@ -977,6 +1008,7 @@ Nothing is imported until it's used. On GitHub's spec (1,242 operations, 4,035 m
 
   The generator prints how many operations each rule matched and warns about one that matched none; an unknown type or argument, an `items` path that isn't an array in an operation's response, or an `_all` name that's already taken stops it. Without a matching rule, an operation's `x-speakeasy-pagination` extension is used (`offsetLimit`, `cursor` and `url`, with `$.dotted.paths`); one apiroute can't map is a warning.
 - **Query and form styles follow the spec.** A section with `style: deepObject` query parameters sends them with bracketed names (`created[gt]=1&expand[]=customer`); others repeat the name for a list (`tag=a&tag=b`). Form bodies always use brackets (`metadata[key]=v`, `items[][price]=p`). A request body that can hold nothing (an object schema with no properties and `additionalProperties: false`, as on most of Stripe's reads) gets no `body` argument.
+- **Webhooks.** An OpenAPI 3.1 spec's `webhooks` become `webhooks.py`, with a function per webhook that parses a request body (`webhooks.new_pet(body)`), and `WEBHOOKS`, which maps the spec's names to them. With `--models`, `models/webhooks.py` returns the payload models instead. Check signatures first with [`apiroute.webhooks`](#webhooks).
 - **Output passes `ruff check` and `ruff format`.** When ruff is installed, the generator runs it over the output; `--no-format` skips that.
 - **OpenAPI:** tags become sections, `operationId`s become method names, and path, query and header parameters become arguments. Bodies can be JSON, form or multipart; responses can be JSON, text or binary. Schemas become models, with `allOf` merged, `oneOf`/`anyOf` as unions and enums as `Literal`. Bearer, basic and API key auth become constructor arguments.
 - **WSDL:** each operation becomes a POST route with its `SOAPAction`. Bodies are dicts in the xmltodict shape: child elements as keys, `"@attr"` for attributes, `"#text"` for text content, and `"{namespace}local"` for an element from another namespace. Faults raise `apiroute.soap.SoapFault`. XML is parsed with `defusedxml`.

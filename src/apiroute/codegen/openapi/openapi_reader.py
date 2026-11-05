@@ -8,6 +8,7 @@ from apiroute.codegen.api_definition import (
     Operation,
     Parameter,
     RequestBody,
+    Webhook,
 )
 from apiroute.codegen.openapi.openapi_pagination import OpenApiPagination
 from apiroute.codegen.openapi.ref_resolver import RefResolver
@@ -16,7 +17,7 @@ from apiroute.codegen.openapi.spec_loader import SpecLoader
 from apiroute.codegen.openapi.swagger2_converter import Swagger2Converter
 from apiroute.codegen.pagination.pagination_rules import PaginationRules
 from apiroute.codegen.plain_text import plain_text
-from apiroute.codegen.python_names import pascal_case, snake_case, unique
+from apiroute.codegen.python_names import pascal_case, safe_identifier, snake_case, unique
 from apiroute.codegen.type_ref import ANY
 
 # Headers apiroute sets itself (from the body format, or the client's auth); OpenAPI says
@@ -79,12 +80,37 @@ class OpenApiReader:
         for path, item in document.get("paths", {}).items():
             self._read_path(definition, path, self._resolver.deref(item))
         definition.groups = list(self._groups.values())
+        definition.webhooks = self._webhooks(document.get("webhooks") or {})
         for name in document.get("components", {}).get("schemas", {}):
             self._mapper.register_named(name, f"#/components/schemas/{_escape(name)}")
         definition.auth = _auth(document.get("components", {}).get("securitySchemes", {}))
         if self._pagination_rules is not None:
             definition.warnings += self._pagination_rules.warnings()
         return definition
+
+    def _webhooks(self, webhooks: dict) -> list[Webhook]:
+        """OpenAPI 3.1 webhooks: each one's payload, the JSON body of its first operation."""
+        found: list[Webhook] = []
+        taken: set[str] = set()
+        for wire_name, item in webhooks.items():
+            item = self._resolver.deref(item)
+            operation = next(
+                (self._resolver.deref(item[m]) for m in _METHODS if isinstance(item.get(m), dict)),
+                {},
+            )
+            name = unique(safe_identifier(snake_case(wire_name)), taken)
+            webhook = Webhook(
+                name=name,
+                wire_name=wire_name,
+                summary=plain_text(operation.get("summary") or operation.get("description", "")),
+            )
+            body = self._body(operation.get("requestBody"), pascal_case(name), "Payload")
+            if body is not None and body.type != ANY:
+                webhook.payload = body.type
+            if body is not None:
+                webhook.payload_plain = body.plain
+            found.append(webhook)
+        return found
 
     def _source_name(self) -> str:
         return self._location.rsplit("/", 1)[-1]
@@ -171,7 +197,7 @@ class OpenApiReader:
             )
         return parameters, path
 
-    def _body(self, request_body: Any, hint: str) -> RequestBody | None:
+    def _body(self, request_body: Any, hint: str, suffix: str = "Request") -> RequestBody | None:
         if not request_body:
             return None
         request_body = self._resolver.deref(request_body)
@@ -183,7 +209,7 @@ class OpenApiReader:
         if self._holds_nothing(schema):
             return None
         return RequestBody(
-            type=self._mapper.map(schema, f"{hint}Request"),
+            type=self._mapper.map(schema, f"{hint}{suffix}"),
             required=bool(request_body.get("required")),
             body_format=_FORMS.get(media, "json"),
             plain=self._mapper.plain(schema),

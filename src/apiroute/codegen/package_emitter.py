@@ -11,6 +11,7 @@ from apiroute.codegen.models_client_emitter import ModelsClientEmitter
 from apiroute.codegen.models_index_emitter import ModelsIndexEmitter
 from apiroute.codegen.schema_module_emitter import SchemaModuleEmitter
 from apiroute.codegen.section_path import section_folder
+from apiroute.codegen.webhooks_emitter import WebhooksEmitter
 
 
 class PackageEmitter:
@@ -22,6 +23,7 @@ class PackageEmitter:
         <out>/[<tag>/]models/client.py           the .models view, when with_models
         <out>/[<tag>/]models/models.py           a lazy index of the level's models
         <out>/[<tag>/]models/schemas/*.py        one module per model (or cycle of models)
+        <out>/webhooks.py, <out>/models/webhooks.py  parsing the webhooks the spec declares
 
     Regenerating into the same directory first removes every file this generator wrote
     (they start with MARKER), so tags dropped from the spec don't linger; a directory that
@@ -40,6 +42,8 @@ class PackageEmitter:
             folder = section_folder(group.name)
             files[f"{folder}/__init__.py"] = self._marker_only()
             files[f"{folder}/client.py"] = self._client(group)
+        if self._definition.webhooks:
+            files["webhooks.py"] = WebhooksEmitter(self._definition, self._version).source()
         if self._with_models:
             files.update(self._models_files())
         return files
@@ -83,6 +87,9 @@ class PackageEmitter:
                 self._definition, module, modules, splitter.dependencies, self._version
             )
             files[f"{_models_folder(module.folder)}/schemas/{module.name}.py"] = emitter.source()
+        if self._definition.webhooks:
+            emitter = WebhooksEmitter(self._definition, self._version, modules)
+            files["models/webhooks.py"] = emitter.source()
         return files
 
     def _init_source(self) -> str:
