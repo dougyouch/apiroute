@@ -27,3 +27,5 @@ class RouteSpec(NamedTuple):
     paginate: Any = None
     # Called with each response whose status is expected; a false value but None rejects it
     check: Any = None
+    # A Poll (apiroute.polling): the method waits for a long-running operation to finish
+    poll: Any = None

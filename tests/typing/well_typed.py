@@ -136,3 +136,15 @@ assert_type(RateLimiter(requests=1).reserve(), float)
 assert_type(len(ConditionalCache()), int)
 assert_type(shared_transports(Instrumented()), dict[str, Any])
 StaticToken().seed(AccessToken("abc", expires_at=1_900_000_000.0))
+
+
+# Long-running operations
+from apiroute.polling import Poll  # noqa: E402
+
+
+class Exports(Client):
+    @route("POST", "/exports", poll=Poll(interval=2, timeout=None, result="output"))
+    def export(self, body: dict[str, Any]) -> Issue: ...
+
+
+assert_type(Exports().export({}), Issue)

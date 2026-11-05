@@ -49,6 +49,8 @@ class RouteDefinition:
     paginate: Any = None
     # Accepts or rejects each response whose status is expected, before its body is parsed
     check: Any = None
+    # A Poll: a 202 Accepted response is polled until the operation finishes
+    poll: Any = None
 
     @property
     def call_signature(self) -> inspect.Signature:

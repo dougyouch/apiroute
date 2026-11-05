@@ -88,6 +88,7 @@ class RouteCompiler:
             idempotency_key=self._idempotency_key(),
             paginate=paginate,
             check=self._check(),
+            poll=self._poll(),
         )
 
     def _signature(self) -> inspect.Signature:
@@ -258,6 +259,16 @@ class RouteCompiler:
         if self._spec.stream is not None:
             raise ValueError("check= reads the body; a stream= route's body isn't read yet")
         return check
+
+    def _poll(self) -> Any:
+        poll = self._spec.poll
+        if poll is None:
+            return None
+        if not all(callable(getattr(poll, step, None)) for step in ("first", "next", "decode")):
+            raise TypeError("poll= takes a Poll (apiroute.polling)")
+        if self._spec.stream is not None or self._spec.paginate is not None:
+            raise ValueError("poll= waits for one result; it can't take stream= or paginate=")
+        return poll
 
     def _expected(self) -> frozenset[int] | None:
         expected = self._spec.expected

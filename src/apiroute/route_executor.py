@@ -10,6 +10,9 @@ from apiroute.auth.async_auth_attempts import AsyncAuthAttempts
 from apiroute.auth.auth_attempts import AuthAttempts, Authorize
 from apiroute.client_config import ClientConfig
 from apiroute.idempotency_key import IdempotencyKey
+from apiroute.polling.async_poller import AsyncPoller
+from apiroute.polling.poll_session import PollSession
+from apiroute.polling.poller import Poller
 from apiroute.request_builder import RequestBuilder
 from apiroute.request_options import RequestOptions
 from apiroute.request_spec import RequestSpec
@@ -41,10 +44,21 @@ class RouteExecutor:
         self._options = options
 
     def execute(self, values: Mapping[str, Any]) -> Any:
-        spec, policy, pipeline = self._prepare(values)
+        spec, policy, pipeline, read_policy = self._prepare(values)
         transport = pipeline.wrap(self._root._http_transport())
         runner = RetryRunner(policy, self._root._sleep)
         auth = AuthAttempts(self._root.authenticator, self._root, self._definition.name)
+        if self._definition.poll is not None:
+            polls = RetryRunner(read_policy, self._root._sleep)
+
+            def send(request: RequestSpec, attempts: RetryRunner) -> httpx.Response:
+                return attempts.run(
+                    lambda: auth.run(lambda authorize: self._send(transport, authorize(request)))
+                )
+
+            return Poller(self._poll_session(), self._root._sleep).run(
+                lambda: send(spec, runner), lambda url: send(_poll_request(spec, url), polls)
+            )
         if self._definition.stream is None:
             return runner.run(
                 lambda: auth.run(
@@ -70,18 +84,33 @@ class RouteExecutor:
         return stream.consume(response, stack, reconnector)
 
     async def execute_async(self, values: Mapping[str, Any]) -> Any:
-        spec, policy, pipeline = self._prepare(values)
+        spec, policy, pipeline, read_policy = self._prepare(values)
         transport = pipeline.wrap_async(self._root._async_http_transport())
         runner = AsyncRetryRunner(policy, self._root._async_sleep)
         auth = AsyncAuthAttempts(self._root.authenticator, self._root, self._definition.name)
+
+        async def exchange(request: RequestSpec, authorize: Authorize) -> httpx.Response:
+            hooked = self._before(authorize(request))
+            started = time.perf_counter()
+            return self._after(hooked, await transport.send(hooked), started)
+
+        if self._definition.poll is not None:
+            polls = AsyncRetryRunner(read_policy, self._root._async_sleep)
+
+            async def send(request: RequestSpec, attempts: AsyncRetryRunner) -> httpx.Response:
+                return await attempts.run(
+                    lambda: auth.run(lambda authorize: exchange(request, authorize))
+                )
+
+            return await AsyncPoller(self._poll_session(), self._root._async_sleep).run(
+                lambda: send(spec, runner), lambda url: send(_poll_request(spec, url), polls)
+            )
         if self._definition.stream is None:
 
-            async def send(authorize: Authorize) -> Any:
-                hooked = self._before(authorize(spec))
-                started = time.perf_counter()
-                return self._read(self._after(hooked, await transport.send(hooked), started))
+            async def read(authorize: Authorize) -> Any:
+                return self._read(await exchange(spec, authorize))
 
-            return await runner.run(lambda: auth.run(send))
+            return await runner.run(lambda: auth.run(read))
         stream = self._stream_reader(values)
 
         async def open_stream(resume_headers: dict[str, str]) -> Any:
@@ -104,12 +133,34 @@ class RouteExecutor:
 
     def _prepare(
         self, values: Mapping[str, Any]
-    ) -> tuple[RequestSpec, RetryPolicy, TransportPipeline]:
+    ) -> tuple[RequestSpec, RetryPolicy, TransportPipeline, RetryPolicy]:
+        """The request, its retry policy, the transport pipeline, and the retry policy of reads
+        the call makes after it (a poll= route's status GETs)."""
         config = self._router._request_config()
         spec = RequestBuilder(config, self._root, self._options).build(self._definition, values)
         should_retry = self._should_retry(config, spec)
-        policy = RetryPolicy(self._retries(config), should_retry, self._definition.name)
-        return spec, policy, TransportPipeline(config, self._root)
+        retries = self._retries(config)
+        policy = RetryPolicy(retries, should_retry, self._definition.name)
+        read_policy = RetryPolicy(retries, self._root.should_retry, self._definition.name)
+        return spec, policy, TransportPipeline(config, self._root), read_policy
+
+    def _poll_session(self) -> PollSession:
+        definition = self._definition
+        returns = self._options.returns or definition.returns
+
+        def reader(decoder: Any) -> ResponseReader:
+            return ResponseReader(
+                definition.name,
+                None,
+                returns,
+                definition.converter,
+                decoder or definition.decoder,
+                redact_url=self._root.redact_url,
+            )
+
+        return PollSession(
+            definition.poll, definition.name, self._response_reader(), reader, self._root.redact_url
+        )
 
     def _should_retry(
         self, config: ClientConfig, spec: RequestSpec
@@ -181,3 +232,17 @@ class RouteExecutor:
 def _with_headers(spec: RequestSpec, headers: dict[str, str]) -> RequestSpec:
     """The request with these headers added, e.g. Last-Event-ID when a stream resumes."""
     return replace(spec, headers={**spec.headers, **headers}) if headers else spec
+
+
+def _poll_request(spec: RequestSpec, url: str) -> RequestSpec:
+    """A GET of a poll= route's status or result URL, with the route's headers but no body."""
+    parts = httpx.URL(url)
+    headers = {k: v for k, v in spec.headers.items() if k.lower() != "content-type"}
+    return replace(
+        spec,
+        method="GET",
+        url=str(parts.copy_with(query=None, fragment=None)),
+        params=list(parts.params.multi_items()),
+        headers=headers,
+        content=None,
+    )
