@@ -28,6 +28,9 @@ RESERVED = frozenset(
         "redact_url",
         "soap_header",
         "authenticator",
+        "rate_limiter",
+        "conditional_cache",
+        "telemetry",
     }
 )
 

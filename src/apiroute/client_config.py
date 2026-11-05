@@ -20,6 +20,19 @@ CONFIG_ATTRIBUTES = (
     "compile_routes",
     "follow_redirects",
     "idempotency_key",
+    "rate_limiter",
+    "conditional_cache",
+    "telemetry",
+)
+
+# Settings that belong to the API's host, like base_url: a section takes its parent's unless
+# it sets its own
+HOST_ATTRIBUTES = (
+    "follow_redirects",
+    "idempotency_key",
+    "rate_limiter",
+    "conditional_cache",
+    "telemetry",
 )
 
 # These merge down the class hierarchy, as the gem's header and query_param calls do;
@@ -51,6 +64,12 @@ class ClientConfig:
     # The header (e.g. "Idempotency-Key") sending one key per call on routes that aren't
     # idempotent, which makes retrying them safe; a section takes its parent's unless it sets one
     idempotency_key: str | None = None
+    # A RateLimiter: waits before requests to stay under the API's rate limit
+    rate_limiter: Any = None
+    # A ConditionalCache: revalidates GET responses with If-None-Match / If-Modified-Since
+    conditional_cache: Any = None
+    # An OpenTelemetry (or anything with its span()): traces each attempt
+    telemetry: Any = None
     # The settings a class in the chain set itself, as opposed to defaults: an inherited retries
     # or timeout gives way to the section's own only when the section set one
     explicit: frozenset[str] = frozenset()
@@ -67,10 +86,9 @@ class ClientConfig:
     def for_section(self, parent: "ClientConfig", root: "ClientConfig") -> "ClientConfig":
         """This (a section's) config, with its parent's base_url and what it inherits from root."""
         changes: dict[str, Any] = {"base_url": self.base_url or parent.base_url}
-        if "follow_redirects" not in self.explicit:
-            changes["follow_redirects"] = parent.follow_redirects
-        if "idempotency_key" not in self.explicit:
-            changes["idempotency_key"] = parent.idempotency_key
+        for name in HOST_ATTRIBUTES:
+            if name not in self.explicit:
+                changes[name] = getattr(parent, name)
         for name in self.inherit:
             if name in MERGED_ATTRIBUTES:
                 changes[name] = {**getattr(root, name), **getattr(self, name)}
@@ -108,10 +126,24 @@ class ClientConfig:
             isinstance(self.idempotency_key, str) and self.idempotency_key
         ):
             raise ValueError("idempotency_key must be a header name or None")
+        _check_kind("rate_limiter", self.rate_limiter, ("reserve", "observe"))
+        _check_kind("conditional_cache", self.conditional_cache, ("prepare", "resolve"))
+        _check_kind("telemetry", self.telemetry, ("span",))
         if self.compile_routes not in ("eager", "lazy"):
             raise ValueError("compile_routes must be 'eager' or 'lazy'")
         if not self.inherit <= INHERITABLE:
             raise ValueError(f"inherit may only list {sorted(INHERITABLE)}")
+
+
+def _check_kind(name: str, value: Any, methods: tuple[str, ...]) -> None:
+    """A setting holding an object: None, or something with the methods it is used through."""
+    if value is not None and not all(callable(getattr(value, m, None)) for m in methods):
+        expected = {
+            "rate_limiter": "a RateLimiter",
+            "conditional_cache": "a ConditionalCache",
+            "telemetry": "an OpenTelemetry",
+        }[name]
+        raise ValueError(f"{name} must be {expected} or None")
 
 
 def _parent_config(router_class: type) -> ClientConfig:

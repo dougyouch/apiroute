@@ -117,3 +117,22 @@ assert_type(token.expires_in, float | None)
 event = ServerSentEvent("{}")
 assert_type(event.json(), Any)
 assert_type(event.id, str | None)
+
+
+# Rate limits, conditional requests and tracing
+from apiroute import shared_transports  # noqa: E402
+from apiroute.caching import ConditionalCache  # noqa: E402
+from apiroute.rate_limiting import RateLimiter  # noqa: E402
+from apiroute.telemetry import OpenTelemetry  # noqa: E402
+
+
+class Instrumented(Client):
+    rate_limiter = RateLimiter(requests=10, per=1.0, headers=True)
+    conditional_cache = ConditionalCache(max_entries=100)
+    telemetry = OpenTelemetry(propagate=False)
+
+
+assert_type(RateLimiter(requests=1).reserve(), float)
+assert_type(len(ConditionalCache()), int)
+assert_type(shared_transports(Instrumented()), dict[str, Any])
+StaticToken().seed(AccessToken("abc", expires_at=1_900_000_000.0))

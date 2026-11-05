@@ -22,6 +22,7 @@ from apiroute.stream_reader import StreamReader
 from apiroute.streaming.async_stream_reconnector import AsyncStreamReconnector
 from apiroute.streaming.stream_decoders import RECONNECTING_STREAMS
 from apiroute.streaming.stream_reconnector import StreamReconnector
+from apiroute.transport_pipeline import TransportPipeline
 from apiroute.unsent_retry_filter import UnsentRetryFilter
 
 
@@ -40,8 +41,8 @@ class RouteExecutor:
         self._options = options
 
     def execute(self, values: Mapping[str, Any]) -> Any:
-        spec, policy = self._prepare(values)
-        transport = self._root._http_transport()
+        spec, policy, pipeline = self._prepare(values)
+        transport = pipeline.wrap(self._root._http_transport())
         runner = RetryRunner(policy, self._root._sleep)
         auth = AuthAttempts(self._root.authenticator, self._root, self._definition.name)
         if self._definition.stream is None:
@@ -69,8 +70,8 @@ class RouteExecutor:
         return stream.consume(response, stack, reconnector)
 
     async def execute_async(self, values: Mapping[str, Any]) -> Any:
-        spec, policy = self._prepare(values)
-        transport = self._root._async_http_transport()
+        spec, policy, pipeline = self._prepare(values)
+        transport = pipeline.wrap_async(self._root._async_http_transport())
         runner = AsyncRetryRunner(policy, self._root._async_sleep)
         auth = AsyncAuthAttempts(self._root.authenticator, self._root, self._definition.name)
         if self._definition.stream is None:
@@ -101,12 +102,14 @@ class RouteExecutor:
             reconnector = AsyncStreamReconnector(policy, self._root._async_sleep, open_stream)
         return await stream.consume_async(response, stack, reconnector)
 
-    def _prepare(self, values: Mapping[str, Any]) -> tuple[RequestSpec, RetryPolicy]:
+    def _prepare(
+        self, values: Mapping[str, Any]
+    ) -> tuple[RequestSpec, RetryPolicy, TransportPipeline]:
         config = self._router._request_config()
         spec = RequestBuilder(config, self._root, self._options).build(self._definition, values)
         should_retry = self._should_retry(config, spec)
         policy = RetryPolicy(self._retries(config), should_retry, self._definition.name)
-        return spec, policy
+        return spec, policy, TransportPipeline(config, self._root)
 
     def _should_retry(
         self, config: ClientConfig, spec: RequestSpec
