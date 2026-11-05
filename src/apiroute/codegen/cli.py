@@ -152,6 +152,13 @@ def _parser() -> argparse.ArgumentParser:
         "that sends them",
     )
     generate.add_argument(
+        "--discriminators",
+        action="store_true",
+        help="generate a oneOf or anyOf with a discriminator as a tagged union, which pydantic "
+        "picks the member of by the discriminator's value, typing that property in each member "
+        "as the Literal of the values naming it (openapi only)",
+    )
+    generate.add_argument(
         "--no-format",
         action="store_true",
         help="don't run `ruff format` on the output, even when ruff is installed",
@@ -218,7 +225,11 @@ def _reader(arguments: argparse.Namespace, client_name: str, rules: PaginationRu
     if arguments.format == "openapi":
         from apiroute.codegen.openapi.openapi_reader import OpenApiReader
 
-        return OpenApiReader(arguments.spec, client_name, pagination=rules)
+        return OpenApiReader(
+            arguments.spec, client_name, pagination=rules, discriminators=arguments.discriminators
+        )
+    if arguments.discriminators:
+        raise ValueError("--discriminators only applies to openapi")
     from apiroute.codegen.wsdl.wsdl_reader import WsdlReader
 
     return WsdlReader(arguments.spec, client_name)

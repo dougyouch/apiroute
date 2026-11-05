@@ -8,12 +8,16 @@ from apiroute.codegen.type_ref import TypeRef
 class OpenEnums:
     """Lets every enum in the models also take values the spec doesn't list (--open-enums),
     for APIs that send them: Literal["N", "S"] becomes Literal["N", "S"] | str. Literals of a
-    single value stay closed, since they tag the members of unions (type: "Feature")."""
+    single value stay closed, since they tag the members of unions (type: "Feature"), and so
+    do discriminators, whatever their number of values."""
 
     def apply(self, definition: ApiDefinition) -> None:
         for model in definition.models.values():
             model.fields = [
-                dataclasses.replace(field, type=opened(field.type)) for field in model.fields
+                field
+                if field.discriminator
+                else dataclasses.replace(field, type=opened(field.type))
+                for field in model.fields
             ]
             if model.alias_of is not None:
                 model.alias_of = opened(model.alias_of)

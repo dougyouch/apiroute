@@ -1,8 +1,10 @@
+import dataclasses
 from typing import Any
 
 from apiroute.codegen.api_definition import Model, ModelField
 from apiroute.codegen.openapi.ref_resolver import RefResolver
 from apiroute.codegen.plain_text import plain_text
+from apiroute.codegen.python_literals import py_str
 from apiroute.codegen.python_names import MODEL_RESERVED, pascal_case, snake_case, unique
 from apiroute.codegen.type_ref import ANY, TypeRef
 
@@ -12,11 +14,15 @@ _PRIMITIVES = {"string": "str", "integer": "int", "number": "float", "boolean": 
 class SchemaMapper:
     """Turns JSON Schemas into Python types, adding a Model for every named schema and every
     inline object. A $ref is registered under its name before its body is mapped, so
-    recursive schemas refer to themselves by name."""
+    recursive schemas refer to themselves by name. With discriminators=True, a oneOf or anyOf
+    with a discriminator becomes a tagged union."""
 
-    def __init__(self, resolver: RefResolver, models: dict[str, Model]):
+    def __init__(
+        self, resolver: RefResolver, models: dict[str, Model], discriminators: bool = False
+    ):
         self._resolver = resolver
         self._models = models
+        self._discriminators = discriminators
         self._by_ref: dict[tuple[str, str], str] = {}
         self._taken: set[str] = set()
 
@@ -56,7 +62,7 @@ class SchemaMapper:
             return self._all_of(schema, hint, base)
         for key in ("oneOf", "anyOf"):
             if key in schema:
-                return self._union(schema[key], hint, base)
+                return self._union(schema[key], hint, base, schema.get("discriminator"))
         kinds = [k for k in _types(schema) if k != "null"]
         if len(kinds) > 1:
             options = [self._unnullable({**schema, "type": k}, hint, base) for k in kinds]
@@ -95,7 +101,12 @@ class SchemaMapper:
                 schema = self._merge([*schema["allOf"], own], base)
             fields = self._fields(schema, name, base)
             return Model(name, fields=fields, description=description)
-        alias = self.map(schema, f"{name}Value", base)
+        if self._discriminators and isinstance(schema, dict) and _is_tagged_union(schema):
+            key = "oneOf" if "oneOf" in schema else "anyOf"
+            union = self._union(schema[key], name, base, schema["discriminator"], named=True)
+            alias = union.optional() if _is_nullable(schema) else union
+        else:
+            alias = self.map(schema, f"{name}Value", base)
         return Model(name, description=description, alias_of=alias)
 
     def _object(self, schema: dict, hint: str, base: str | None) -> TypeRef:
@@ -137,20 +148,89 @@ class SchemaMapper:
             merged.setdefault("description", part.get("description", ""))
         return merged
 
-    def _union(self, options: list[Any], hint: str, base: str | None) -> TypeRef:
-        mapped: list[TypeRef] = []
+    def _union(
+        self,
+        options: list[Any],
+        hint: str,
+        base: str | None,
+        discriminator: Any = None,
+        named: bool = False,
+    ) -> TypeRef:
+        """The options as a union. With a discriminator whose options are all models having
+        its property, a tagged union pydantic picks the member of by that property: an alias
+        model, or (for a named schema, named=True) the Annotated expression itself."""
+        variants: list[tuple[Any, TypeRef]] = []
         nullable = False
         for index, option in enumerate(options, 1):
             if isinstance(option, dict) and _types(option) == ["null"]:
                 nullable = True
                 continue
             item = self.map(option, f"{hint}Option{index}", base)
-            if item.expr not in {m.expr for m in mapped}:
-                mapped.append(item)
-        if not mapped:
+            if item.expr not in {m.expr for _, m in variants}:
+                variants.append((option, item))
+        if not variants:
             return TypeRef("None")
+        mapped = [item for _, item in variants]
         union = TypeRef.of(" | ".join(m.expr for m in mapped), *mapped)
+        tagged = self._tagged(union, variants, discriminator, base)
+        if tagged is not None and not named:
+            name = unique(pascal_case(hint), self._taken, frozenset())
+            self._models[name] = Model(name, alias_of=tagged)
+            tagged = TypeRef.model(name)
+        union = tagged or union
         return union.optional() if nullable else union
+
+    def _tagged(
+        self,
+        union: TypeRef,
+        variants: list[tuple[Any, TypeRef]],
+        discriminator: Any,
+        base: str | None,
+    ) -> TypeRef | None:
+        """The union tagged by an OpenAPI discriminator, each member's property typed as the
+        Literal of the values naming it (its mapping entries, else its schema's name); None
+        when the union can't be one: a member that isn't a model, or lacks the property."""
+        if not self._discriminators or len(variants) < 2 or not isinstance(discriminator, dict):
+            return None
+        wire_name = discriminator.get("propertyName")
+        if not isinstance(wire_name, str):
+            return None
+        named_by = self._mapping(discriminator.get("mapping"), base)
+        tags = []
+        for option, item in variants:
+            model = self._models.get(item.expr)
+            if model is None or model.alias_of is not None:
+                return None
+            field = next((f for f in model.fields if (f.alias or f.name) == wire_name), None)
+            values = named_by.get(model.name) or self._implicit_tag(option, base)
+            if field is None or not values:
+                return None
+            tags.append((model, field, values))
+        if len({field.name for _, field, _ in tags}) != 1:
+            return None
+        for model, field, values in tags:
+            _tag(model, field, values)
+        expr = f"Annotated[{union.expr}, Field(discriminator={py_str(tags[0][1].name)})]"
+        return TypeRef(expr, union.models)
+
+    def _mapping(self, mapping: Any, base: str | None) -> dict[str, list[str]]:
+        """A discriminator's mapping as model name -> the values naming it. Values may be
+        refs or bare schema names."""
+        named_by: dict[str, list[str]] = {}
+        if not isinstance(mapping, dict):
+            return named_by
+        for value, target in mapping.items():
+            if not isinstance(target, str):
+                continue
+            ref = target if "/" in target or "#" in target else f"#/components/schemas/{target}"
+            named_by.setdefault(self._ref(ref, base).expr, []).append(str(value))
+        return named_by
+
+    def _implicit_tag(self, option: Any, base: str | None) -> list[str]:
+        """The value naming a member with no mapping entry: its schema's name."""
+        if not isinstance(option, dict) or "$ref" not in option:
+            return []
+        return [self._resolver.resolve(option["$ref"], base)[2]]
 
     def _fields(self, schema: dict, model_name: str, base: str | None) -> list[ModelField]:
         required = set(schema.get("required", []))
@@ -195,6 +275,21 @@ def _type(schema: dict) -> str | None:
 
 def _is_nullable(schema: dict) -> bool:
     return schema.get("nullable") is True or "null" in _types(schema)
+
+
+def _is_tagged_union(schema: dict) -> bool:
+    return isinstance(schema.get("discriminator"), dict) and any(
+        isinstance(schema.get(key), list) for key in ("oneOf", "anyOf")
+    )
+
+
+def _tag(model: Model, field: ModelField, values: list[str]) -> None:
+    """Types a union member's discriminator field as the Literal of the values naming it,
+    added to those of other unions it's in; it must then be present."""
+    merged = tuple(dict.fromkeys([*field.discriminator, *values]))
+    literal = TypeRef(f"Literal[{', '.join(repr(v) for v in merged)}]")
+    tagged = dataclasses.replace(field, type=literal, required=True, discriminator=merged)
+    model.fields = [tagged if f is field else f for f in model.fields]
 
 
 def _is_object_model(schema: dict) -> bool:

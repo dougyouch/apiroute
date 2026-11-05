@@ -49,7 +49,8 @@ class SchemaModuleEmitter:
         if standard:
             sections.append(sorted(standard))
         pydantic_names = ["BaseModel", "ConfigDict"] if self._classes() else []
-        if any(field.alias for model in self._classes() for field in model.fields):
+        has_alias = any(field.alias for model in self._classes() for field in model.fields)
+        if has_alias or self._uses("Field"):  # Field(discriminator=...) in a tagged union
             pydantic_names.append("Field")
         if self._uses("BeforeValidator"):
             pydantic_names.append("BeforeValidator")
