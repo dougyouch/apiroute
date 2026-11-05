@@ -4,6 +4,12 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.7.2](https://github.com/dougyouch/apiroute/compare/v2.7.1...v2.7.2) (2026-11-05)
+
+### Fixes
+
+- fix: send ids, timestamps and enums as their wire form (7dc0d19)
+
 ## [2.7.1](https://github.com/dougyouch/apiroute/compare/v2.7.0...v2.7.1) (2026-10-30)
 
 ### Fixes
