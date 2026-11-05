@@ -925,6 +925,42 @@ def _no_network(apiroute_block_network):
     pass
 ```
 
+### Recording and replaying real responses
+
+`cassette(path)` records what the real API answers the first time a test runs, and replays it on later runs, without the network:
+
+```python
+from apiroute.testing import cassette
+
+
+def test_repository_stats():
+    with cassette("tests/cassettes/repository_stats.json"):
+        assert stats.for_repository("dougyouch/apiroute").stars > 0
+```
+
+- **Modes.** `mode="once"` (the default) replays the file when it exists and records it when it doesn't. `"record"` always sends real requests and replaces the file; `"replay"` requires the file. A recording is saved only when the block ends without an error.
+- **Matching.** A request is matched to a recording by method and URL, and by body with `match_body=True` (JSON compared as data). Each recording plays once, in order. A request with no unplayed match raises `CassetteMismatch`, and `assert_all_played=True` fails a block that leaves recordings unplayed.
+- **Secrets stay out of the file.** `Authorization`, `Cookie` and any request header whose name looks secret (`token`, `key`, `secret`, `session` ...) are saved as `"[REDACTED]"`, as are `Set-Cookie` and the query values `redact_url` masks; live requests are matched in the same masked form. For secrets elsewhere, such as in a body, `redact=` is called with each interaction's JSON and returns a scrubbed copy.
+- **The file** is readable JSON, with bodies saved as JSON, text, or base64 for binary content. A streamed response is read in full while recording, and replays like any other. Retries during replay don't wait.
+
+### Checking mocks against the spec
+
+A mock written by hand, or recorded a year ago, can drift from the API. `ResponseSchemas(GeneratedClient)` reads the response type of every operation from a generated client's `.models` layer. Given as `check=` to `MockTransport`, `mock_transport()` or `cassette()`, it validates every `2xx` JSON response against its operation's model, and raises `MockResponseMismatch` (an `AssertionError`) with pydantic's explanation when it doesn't fit:
+
+```python
+from apiroute.testing import ResponseSchemas, mock_transport
+
+PETS = ResponseSchemas(PetsApi)
+
+
+def test_adopt():
+    with mock_transport(check=PETS) as mock:
+        mock.on(operation="getPet").respond(httpx.Response(200, json={"id": 1}))
+        adopt(1)  # MockResponseMismatch: getPet: GET .../pets/1: ... name: Field required
+```
+
+Operations the client doesn't declare, and responses that aren't `2xx` JSON, pass unchecked. It needs pydantic, and imports every section of the client the first time it's used.
+
 ## Code generation
 
 `apiroute generate` writes a client package from an OpenAPI 3.0/3.1 or Swagger 2.0 spec, from a WSDL 1.1 document (document/literal, SOAP 1.1 and 1.2), or from a GraphQL schema plus your own operation files (see [GraphQL clients](#graphql-clients)). Specs can be file paths or URLs, in JSON or YAML.
