@@ -1,5 +1,5 @@
 from dataclasses import replace
-from typing import Any
+from typing import TYPE_CHECKING, Any
 from urllib.parse import quote
 
 import httpx
@@ -15,6 +15,9 @@ from apiroute.transports.transport import Transport
 from apiroute.url_redactor import UrlRedactor
 from apiroute.value_encoder import VALUE_ENCODER
 
+if TYPE_CHECKING:
+    from apiroute.auth.authenticator import Authenticator
+
 # Network failures worth another attempt; other errors (bad URL, TLS) won't fix themselves
 RETRYABLE_ERRORS = (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)
 _URL_REDACTOR = UrlRedactor()
@@ -29,6 +32,10 @@ class Client(Router):
     """
 
     last_response: httpx.Response | None = None
+    # Credentials that change, such as OAuth tokens (see apiroute.auth): applied to every
+    # request of this client and its sections, and refreshed when the API rejects them.
+    # Usually set in __init__, since credentials belong to an instance.
+    authenticator: "Authenticator | None" = None
 
     # Class-level defaults, so a subclass that skips super().__init__() still works
     _base_url: str | None = None

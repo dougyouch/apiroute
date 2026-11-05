@@ -27,6 +27,7 @@ RESERVED = frozenset(
         "check_response",
         "redact_url",
         "soap_header",
+        "authenticator",
     }
 )
 

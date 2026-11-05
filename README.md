@@ -6,6 +6,7 @@ Build API clients declaratively: one `@route` per endpoint, safe defaults, [http
 - **GraphQL built for hand-written queries.** You write the query, apiroute checks it against the API's schema when the class is created, fills its variables from the method's arguments, unwraps `data`, raises `GraphQLError` with any partial data, and won't re-send a mutation that may already have run.
 - **Pagination for any API.** `paginate=ItemCursor()`, `NextUrl()`, `Cursor(...)`, `PageNumber()` or `Offset()` turns a list route into a lazy iterator over every page's items, sync or async, with guards against endless loops and against next-page URLs on other hosts.
 - **Retries you can trust.** Exponential backoff with jitter and `Retry-After` support, and a `should_retry` hook for anything else.
+- **Tokens that refresh themselves.** `OAuth2ClientCredentials` and `OAuth2RefreshToken` fetch a token, renew it before it expires, and after a 401 refresh it and send the request once more.
 - **Event streams.** `stream="sse"`, `"ndjson"` or `"lines"` yields server-sent events, JSON values or lines as they arrive, and an SSE stream reconnects with `Last-Event-ID`.
 - **Typed results.** A return annotation turns JSON into a pydantic model or a dataclass.
 - **Sync and async from the same class.** `client.get_user(...)` or `await client.aio.get_user(...)`.
@@ -375,6 +376,54 @@ retries = Retries(attempts=5, sleep=0.1, backoff=2, max_sleep=10, jitter=True)
   ```
 - `with_options(retries=3)` changes the attempts for one call; `with_options(retries=Retries(...))` replaces the policy.
 
+## Authentication that refreshes
+
+Static credentials go in `headers` or `query_params`. For tokens that expire, set the client's `authenticator`: before every attempt it supplies the current credential, and when the API answers `401` it fetches a fresh one and sends the request once more. That resend isn't counted as a retry, and a second `401` is raised.
+
+```python
+from apiroute.auth import OAuth2ClientCredentials
+
+
+class Orders(Client):
+    base_url = "https://api.example.com"
+
+    def __init__(self, client_id: str, client_secret: str, **kwargs):
+        super().__init__(**kwargs)
+        self.authenticator = OAuth2ClientCredentials(
+            "https://auth.example.com/oauth/token",
+            client_id,
+            client_secret,
+            scope="orders:read",
+            extra={"audience": "https://api.example.com"},  # other form fields some servers want
+        )
+```
+
+- **`OAuth2ClientCredentials(token_url, client_id, client_secret, ...)`** is the client credentials grant, for server-to-server APIs.
+- **`OAuth2RefreshToken(token_url, client_id, refresh_token, client_secret=None, access_token=None, on_refresh=None, ...)`** is the refresh token grant, for acting for a user after an authorization flow you ran. When the server rotates refresh tokens, the new one replaces the old; `on_refresh` is called with every new `AccessToken`, so you can store it. `access_token=AccessToken(...)` starts with a token you already have.
+- **Tokens are kept and shared.** A token is reused until `leeway` seconds (default 30, or half its lifetime if that's shorter) before its `expires_in`. Concurrent calls wait for one fetch: sync calls across threads, async calls per event loop. Each instance has its own token unless the authenticator is set on the class.
+- **Client authentication.** The client secret is sent as HTTP Basic (`client_secret_basic`, which every server must accept); `auth_method="post"` sends it as form fields instead. Without a secret, only `client_id` is sent (a public client).
+- **Token requests use the client's transports**, so connection pools, `mock_transport()` and `MockTransport` answer them too (their operation is `"token"`). Sections use their client's authenticator. `on_request` runs after the credential is applied, so a signature can cover it.
+- **Failures.** A token endpoint that refuses (`invalid_client`, `invalid_grant` ...) raises `apiroute.auth.AuthError`, with `.error`, `.description` and `.response`. It isn't retried, and its message never includes the secret or refresh token. A network error reaching the endpoint is raised as httpx's error, so the call's retries may retry it.
+- **Other schemes.** Subclass `OAuth2TokenAuthenticator` and return a different grant's form fields from `grant()`, or subclass `TokenAuthenticator` and implement `fetch_token(client)` (and `afetch_token` for non-blocking async) for tokens from anywhere else. For a credential that isn't a bearer token, subclass `Authenticator` itself and implement `credential`, `apply` and `invalidate`. Override `rejects(error)` for an API that reports an expired credential some other way, such as with an exception you raise from `check_response`.
+
+```python
+from apiroute.auth import Authenticator
+
+
+class Session(Authenticator):  # a login session, renewed when the API says it expired
+    def credential(self, client):
+        if self.session_id is None:
+            self.session_id = login(client)
+        return self.session_id
+
+    def apply(self, request, credential):
+        return dataclasses.replace(request, headers={**request.headers, "X-Session": credential})
+
+    def invalidate(self, credential):
+        if self.session_id == credential:
+            self.session_id = None
+```
+
 ## GraphQL
 
 `graphql_route` declares a GraphQL operation that you write yourself. In GraphQL the caller decides what the response contains, so apiroute leaves the selection set to you and takes care of the rest: the request envelope, variables, errors and unwrapping. GraphQL operations can sit next to REST routes in the same client, sharing its headers, retries, hooks and test helpers.
@@ -551,9 +600,10 @@ with mock_transport() as mock:
 | `ResponseValidationError` | the JSON doesn't fit the route's model | `.response`, `.error`, `.route_name` |
 | `GraphQLError` | a GraphQL response has `errors` | `.errors`, `.data`, `.codes`, `.response`, `.operation` |
 | `httpx.TransportError` subclasses | the network fails, after retries run out | httpx's details |
+| `AuthError` (`apiroute.auth`) | a token endpoint refused to issue a token, or answered with something that isn't one | `.error`, `.description`, `.response` |
 | `ValueError` | a class setting is invalid (a `base_url` scheme, `body_format`, `inherit`), or a streamed file path is unsafe | the reason in its message |
 
-The first four derive from `ApiRouteError`. `client.last_response` holds the most recent response for debugging; it is per client, so don't rely on it when one client is shared between threads.
+The first four, and `AuthError`, derive from `ApiRouteError`. `client.last_response` holds the most recent response for debugging; it is per client, so don't rely on it when one client is shared between threads.
 
 ## Class settings
 
@@ -565,6 +615,7 @@ The first four derive from `ApiRouteError`. `client.last_response` holds the mos
 | `retries` | `Retries()` (one attempt) |
 | `body_format` | `"json"`, `"form"` or `callable(client, data)` |
 | `query_format` | `"flat"`, `"nested"` (`a[b]=1`) or `callable(client, data)` returning pairs |
+| `authenticator` | `None`. An `apiroute.auth` authenticator that applies a changing credential to every request and refreshes it after a 401; see [Authentication that refreshes](#authentication-that-refreshes). Usually set in `__init__` |
 | `follow_redirects` | `None`: the transport's httpx setting (httpx doesn't follow). `True` follows 3xx answers for this API whatever the transport; a section uses its parent's unless it sets one |
 
 ### Methods to override

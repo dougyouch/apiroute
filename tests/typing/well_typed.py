@@ -78,3 +78,42 @@ class Hooks(Client):
 hooks = Hooks()
 assert_type(hooks.login("octo"), str)  # FROM_RESPONSE isn't asked of callers
 assert_type(hooks.repos(), list[dict[str, Any]])  # FROM_CLIENT is a valid str default
+
+
+# Refreshing credentials and decoded streams
+from apiroute.auth import (  # noqa: E402
+    AccessToken,
+    OAuth2ClientCredentials,
+    OAuth2RefreshToken,
+    TokenAuthenticator,
+)
+from apiroute.streaming import ServerSentEvent  # noqa: E402
+
+
+class OAuthApi(Client):
+    def __init__(self, client_id: str, client_secret: str) -> None:
+        super().__init__()
+        self.authenticator = OAuth2ClientCredentials(
+            "https://auth.test/token", client_id, client_secret, scope="read"
+        )
+
+
+class UserTokens(Client):
+    def __init__(self, refresh_token: str) -> None:
+        super().__init__()
+        self.authenticator = OAuth2RefreshToken(
+            "https://auth.test/token", "app", refresh_token, on_refresh=print
+        )
+
+
+class StaticToken(TokenAuthenticator):
+    def fetch_token(self, client: Any) -> AccessToken:
+        return AccessToken("abc", expires_in=60)
+
+
+token = AccessToken.from_reply({"access_token": "abc"})
+assert_type(token.authorization, str)
+assert_type(token.expires_in, float | None)
+event = ServerSentEvent("{}")
+assert_type(event.json(), Any)
+assert_type(event.id, str | None)
