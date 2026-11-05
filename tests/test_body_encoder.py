@@ -1,3 +1,8 @@
+import datetime
+import decimal
+import json
+import uuid
+
 from apiroute.body_encoder import BodyEncoder
 
 
@@ -30,3 +35,22 @@ def test_multipart_fields_and_files():
     assert b'name="draft"\r\n\r\ntrue' in content
     assert b'filename="a.txt"' in content and b"hello" in content
     assert b'name="skip"' not in content
+
+
+def test_json_bodies_carry_ids_timestamps_and_amounts():
+    content, _ = BodyEncoder("json").encode(
+        None,
+        {
+            "id": uuid.UUID("12345678-1234-5678-1234-567812345678"),
+            "at": datetime.datetime(2026, 1, 2, 3, 4, 5),
+            "on": datetime.date(2026, 1, 2),
+            "amount": decimal.Decimal("10.50"),
+        },
+    )
+
+    assert json.loads(content) == {
+        "id": "12345678-1234-5678-1234-567812345678",
+        "at": "2026-01-02T03:04:05",
+        "on": "2026-01-02",
+        "amount": "10.50",
+    }

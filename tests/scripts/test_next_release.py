@@ -13,6 +13,10 @@ def repo(tmp_path, monkeypatch):
     _git("init", "-q", "-b", "main")
     _git("config", "user.name", "Test")
     _git("config", "user.email", "test@example.test")
+    # A developer's own signing setup must not leak into the scratch repository: a signed tag needs
+    # a message and a key, which these tests have neither of.
+    _git("config", "commit.gpgsign", "false")
+    _git("config", "tag.gpgsign", "false")
     return tmp_path
 
 

@@ -2,6 +2,7 @@ import json
 from typing import Any
 from urllib.parse import urlencode
 
+from apiroute.json_default import json_default
 from apiroute.multipart_encoder import MultipartEncoder
 from apiroute.query_encoder import QueryEncoder
 
@@ -28,4 +29,4 @@ class BodyEncoder:
             return urlencode(pairs), "application/x-www-form-urlencoded"
         if self._format == "multipart":
             return MultipartEncoder().encode(data)
-        return json.dumps(data).encode(), "application/json"
+        return json.dumps(data, default=json_default).encode(), "application/json"

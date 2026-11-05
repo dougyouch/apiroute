@@ -1,6 +1,8 @@
 from collections.abc import Mapping
 from typing import Any
 
+from apiroute.text_value import text_value
+
 QUERY_FORMATS = ("flat", "nested")
 
 
@@ -27,9 +29,9 @@ class QueryEncoder:
         if isinstance(value, Mapping):
             raise TypeError(f"query param {name!r} is a dict; set query_format = 'nested'")
         if isinstance(value, (list, tuple)):
-            pairs.extend((name, _to_text(item)) for item in value)
+            pairs.extend((name, text_value(item)) for item in value)
         else:
-            pairs.append((name, _to_text(value)))
+            pairs.append((name, text_value(value)))
 
     def _add_nested(self, pairs: list[tuple[str, str]], name: str, value: Any) -> None:
         if isinstance(value, Mapping):
@@ -39,12 +41,4 @@ class QueryEncoder:
             for item in value:
                 self._add_nested(pairs, f"{name}[]", item)
         else:
-            pairs.append((name, _to_text(value)))
-
-
-def _to_text(value: Any) -> str:
-    if isinstance(value, bool):
-        return "true" if value else "false"
-    if value is None:
-        return ""
-    return str(value)
+            pairs.append((name, text_value(value)))
