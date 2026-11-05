@@ -94,6 +94,12 @@ packages = ["src/apiroute"]
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
+[tool.coverage.run]
+# Measure the whole package and narrow reports with --include. A --source naming a subpackage
+# (apiroute.auth) makes the async real-socket retry test fail on Python 3.10 and 3.11: anyio's
+# connect_tcp leaks a CancelledError under that tracing.
+source = ["apiroute"]
+
 [tool.ruff]
 line-length = 100
 target-version = "py310"
