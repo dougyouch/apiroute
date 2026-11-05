@@ -16,6 +16,7 @@ from apiroute.retries import Retries
 from apiroute.route import route
 from apiroute.route_definition_error import RouteDefinitionError
 from apiroute.section import Section
+from apiroute.shared_transports import shared_transports
 from apiroute.transport_configuration import aclose_transports, close_transports, use_transport
 from apiroute.transports import (
     AsyncHttpxClientTransport,
@@ -64,5 +65,6 @@ __all__ = [
     "lazy_exports",
     "namespace",
     "route",
+    "shared_transports",
     "use_transport",
 ]

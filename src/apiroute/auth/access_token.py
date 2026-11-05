@@ -7,7 +7,11 @@ from apiroute.auth.auth_error import AuthError
 
 @dataclass(frozen=True)
 class AccessToken:
-    """A token from a token endpoint (or wherever a TokenAuthenticator gets one)."""
+    """A token from a token endpoint (or wherever a TokenAuthenticator gets one).
+
+    Its lifetime is given as expires_in (seconds from when it was received, as OAuth replies
+    say) or expires_at (a Unix time, as many other token APIs and a JWT's exp say), not both.
+    """
 
     value: str
     # Seconds the token is valid for from when it was received; None if it doesn't say
@@ -15,6 +19,18 @@ class AccessToken:
     token_type: str = "Bearer"
     refresh_token: str | None = None
     scope: str | None = None
+    # The Unix time (seconds) the token expires at; None if it doesn't say
+    expires_at: float | None = None
+
+    def __post_init__(self) -> None:
+        if self.expires_in is not None and self.expires_at is not None:
+            raise ValueError("an AccessToken takes expires_in or expires_at, not both")
+
+    def lifetime(self, now: float) -> float | None:
+        """Seconds the token is valid for, given the Unix time now; None if it doesn't say."""
+        if self.expires_at is not None:
+            return self.expires_at - now
+        return self.expires_in
 
     @classmethod
     def from_reply(cls, reply: Any) -> "AccessToken":
