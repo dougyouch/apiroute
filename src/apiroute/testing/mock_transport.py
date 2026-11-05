@@ -1,6 +1,7 @@
 import threading
 from collections.abc import Callable, Iterator
 from contextlib import contextmanager
+from typing import Any
 
 import httpx
 
@@ -20,16 +21,26 @@ class MockTransport:
     (respond()), else handler, else it raises UnmatchedRequest. Requests are encoded by httpx
     through an httpx.MockTransport, so a call's .request is what would have been sent.
 
+    With check (a ResponseSchemas), each JSON success response is validated against the model
+    the operation's spec declares, so a mock that has drifted from the API fails the test.
+
     mock.aio is the async side, sharing the same routes, queue and calls:
     Client(transport=mock, async_transport=mock.aio), or install both with mock_transport().
     """
 
-    def __init__(self, handler: Callable[[httpx.Request], httpx.Response] | None = None):
+    def __init__(
+        self,
+        handler: Callable[[httpx.Request], httpx.Response] | None = None,
+        *,
+        check: Any = None,
+    ):
         self.calls: list[MockCall] = []
         # Retry waits recorded while mock_transport() has this mock installed
         self.sleeps: list[float] = []
         self.aio = AsyncMockTransport(self)
         self._handler = handler
+        # A ResponseSchemas: each JSON response is checked against its operation's model
+        self._check = check
         self._routes: list[MockRoute] = []
         self._queue: list[ResponseSource] = []
         self._lock = threading.Lock()
@@ -80,7 +91,10 @@ class MockTransport:
         with self._lock:
             self.calls.append(call)
             source = self._source_for(call)
-        return produce_response(source, request)
+        response = produce_response(source, request)
+        if self._check is not None:
+            self._check.verify(call, response)
+        return response
 
     def _source_for(self, call: MockCall) -> ResponseSource:
         for route in self._routes:

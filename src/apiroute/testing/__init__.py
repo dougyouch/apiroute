@@ -8,23 +8,33 @@ a scope that installs it for every client, and guards against real network calls
 """
 
 from apiroute.testing.async_mock_transport import AsyncMockTransport
+from apiroute.testing.cassette import Cassette
+from apiroute.testing.cassette_mismatch import CassetteMismatch
+from apiroute.testing.cassette_scope import cassette
 from apiroute.testing.graphql_response import graphql_response
 from apiroute.testing.mock_call import MockCall
+from apiroute.testing.mock_response_mismatch import MockResponseMismatch
 from apiroute.testing.mock_route import MockRoute
 from apiroute.testing.mock_transport import MockTransport
 from apiroute.testing.mock_transport_scope import mock_transport
 from apiroute.testing.network_block import NetworkBlocked, block_network
+from apiroute.testing.response_schemas import ResponseSchemas
 from apiroute.testing.sleep_recording import recorded_sleeps
 from apiroute.testing.unmatched_request import UnmatchedRequest
 
 __all__ = [
     "AsyncMockTransport",
+    "Cassette",
+    "CassetteMismatch",
     "MockCall",
     "MockRoute",
+    "MockResponseMismatch",
     "MockTransport",
     "NetworkBlocked",
+    "ResponseSchemas",
     "UnmatchedRequest",
     "block_network",
+    "cassette",
     "graphql_response",
     "mock_transport",
     "recorded_sleeps",
