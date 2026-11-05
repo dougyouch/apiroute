@@ -111,6 +111,9 @@ class ModelField:
     type: TypeRef
     required: bool
     description: str = ""
+    # The values that tag this model in a discriminated union (OpenAPI discriminator), when
+    # the field is one: its type is then Literal of them, and it must stay that way
+    discriminator: tuple[str, ...] = ()
 
 
 @dataclass

@@ -39,11 +39,14 @@ class OpenApiReader:
         client_name: str,
         loader: SpecLoader | None = None,
         pagination: PaginationRules | None = None,
+        discriminators: bool = False,
     ):
         self._location = location
         self._client_name = client_name
         self._loader = loader or SpecLoader()
         self._pagination_rules = pagination
+        # --discriminators: a oneOf/anyOf with a discriminator becomes a tagged union
+        self._discriminators = discriminators
 
     def read(self) -> ApiDefinition:
         document = self._loader.load(self._location)
@@ -58,7 +61,9 @@ class OpenApiReader:
             source=self._source_name(),
             root=Group("", self._client_name),
         )
-        self._mapper = SchemaMapper(self._resolver, definition.models)
+        self._mapper = SchemaMapper(
+            self._resolver, definition.models, discriminators=self._discriminators
+        )
         self._pagination = OpenApiPagination(
             self._resolver,
             self._mapper,
