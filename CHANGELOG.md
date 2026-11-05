@@ -4,6 +4,17 @@ All notable changes to this project are documented here. The format follows
 [Keep a Changelog](https://keepachangelog.com/en/1.1.0/), and the project uses
 [Semantic Versioning](https://semver.org/).
 
+## [2.9.0](https://github.com/dougyouch/apiroute/compare/v2.8.0...v2.9.0) (2026-11-05)
+
+### Features
+
+- feat: Client.authenticator with OAuth 2.0 tokens that refresh themselves (287dc09)
+- feat: stream="lines", "ndjson" and "sse" yield decoded items as they arrive (4e73dbe)
+
+### Other changes
+
+- chore: measure coverage over the whole apiroute package (243f4e8)
+
 ## [2.8.0](https://github.com/dougyouch/apiroute/compare/v2.7.2...v2.8.0) (2026-11-05)
 
 ### Features
