@@ -49,6 +49,7 @@ def test_client_hooks_and_settings_are_reserved():
         "check_response",
         "redact_url",
         "soap_header",
+        "authenticator",
     ]
     assert [unique(name, taken) for name in names] == [f"{name}_2" for name in names]
 
@@ -70,3 +71,13 @@ def test_no_model_field_shadows_base_model():
         with warnings.catch_warnings():
             warnings.simplefilter("error")
             pydantic.create_model("Model", **{field: (int, 0)})
+
+
+def test_every_public_client_attribute_is_reserved():
+    """A generated section or method named like a Client attribute would hide it."""
+    from apiroute import Client
+    from apiroute.codegen.python_names import RESERVED
+
+    public = {name for name in dir(Client) if not name.startswith("_")}
+    # encode_value predates this check; reserving it now would rename generated methods
+    assert public - {"encode_value"} <= RESERVED

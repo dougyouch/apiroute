@@ -6,6 +6,8 @@ from typing import Any
 import httpx
 
 from apiroute.async_retry_runner import AsyncRetryRunner
+from apiroute.auth.async_auth_attempts import AsyncAuthAttempts
+from apiroute.auth.auth_attempts import AuthAttempts, Authorize
 from apiroute.client_config import ClientConfig
 from apiroute.idempotency_key import IdempotencyKey
 from apiroute.request_builder import RequestBuilder
@@ -26,7 +28,9 @@ from apiroute.unsent_retry_filter import UnsentRetryFilter
 class RouteExecutor:
     """Runs one route call: build the request, then send and read it inside the retry loop.
 
-    execute and execute_async share every step but the send and the sleep.
+    Each attempt carries the client's authenticator's credential, and is sent once more with a
+    fresh one when the API rejects it. execute and execute_async share every step but the send,
+    the sleep and fetching the credential.
     """
 
     def __init__(self, router: Any, definition: RouteDefinition, options: RequestOptions):
@@ -39,15 +43,24 @@ class RouteExecutor:
         spec, policy = self._prepare(values)
         transport = self._root._http_transport()
         runner = RetryRunner(policy, self._root._sleep)
+        auth = AuthAttempts(self._root.authenticator, self._root, self._definition.name)
         if self._definition.stream is None:
-            return runner.run(lambda: self._read(self._send(transport, spec)))
+            return runner.run(
+                lambda: auth.run(
+                    lambda authorize: self._read(self._send(transport, authorize(spec)))
+                )
+            )
         # Only opening the stream is retried; once the body starts, a failure is raised (or,
         # for an event stream, reconnected as the policy allows)
         stream = self._stream_reader(values)
 
         def open_stream(resume_headers: dict[str, str]) -> Any:
             request = _with_headers(spec, resume_headers)
-            return runner.run(lambda: self._open(stream, transport, request))
+            return runner.run(
+                lambda: auth.run(
+                    lambda authorize: self._open(stream, transport, authorize(request))
+                )
+            )
 
         response, stack = open_stream({})
         reconnector = None
@@ -59,27 +72,28 @@ class RouteExecutor:
         spec, policy = self._prepare(values)
         transport = self._root._async_http_transport()
         runner = AsyncRetryRunner(policy, self._root._async_sleep)
+        auth = AsyncAuthAttempts(self._root.authenticator, self._root, self._definition.name)
         if self._definition.stream is None:
 
-            async def attempt() -> Any:
-                hooked = self._before(spec)
+            async def send(authorize: Authorize) -> Any:
+                hooked = self._before(authorize(spec))
                 started = time.perf_counter()
                 return self._read(self._after(hooked, await transport.send(hooked), started))
 
-            return await runner.run(attempt)
+            return await runner.run(lambda: auth.run(send))
         stream = self._stream_reader(values)
 
         async def open_stream(resume_headers: dict[str, str]) -> Any:
             request = _with_headers(spec, resume_headers)
 
-            async def open_once() -> Any:
-                hooked = self._before(request)
+            async def open_once(authorize: Authorize) -> Any:
+                hooked = self._before(authorize(request))
                 started = time.perf_counter()
                 opened = await stream.open_async(transport, hooked)
                 self._after(hooked, opened[0], started)
                 return opened
 
-            return await runner.run(open_once)
+            return await runner.run(lambda: auth.run(open_once))
 
         response, stack = await open_stream({})
         reconnector = None
