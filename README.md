@@ -542,8 +542,19 @@ The first four derive from `ApiRouteError`. `client.last_response` holds the mos
 | `should_retry(self, error, attempt)` | when an attempt fails | retries httpx timeouts, network and protocol errors |
 | `idempotent(self, request)` | once per call, before its first attempt: `True` or `False` decides whether errors after the request may have reached the server are retried | `None`: the route's own (`GET`, `HEAD`, `OPTIONS`, or its `idempotent=`) |
 | `escape_path(self, value)` | for every path value | percent-encodes everything but `A-Z a-z 0-9 - . _ ~` |
+| `encode_value(self, value)` | for each value JSON can't hold, in JSON bodies and GraphQL variables, and for query, form and multipart values; returns something JSON can hold, which is converted again if it needs to be | converts UUIDs, dates, times and datetimes (ISO 8601), timedeltas (ISO 8601 durations), `Decimal`s and `Fraction`s (text), IP addresses and networks, paths, time zones, enums (their value), sets, other mappings, dataclasses, pydantic models and numpy values; raises `TypeError` for anything else |
 | `redact_url(self, url)` | for the URL in an `UnexpectedResponse` message, and so in retry log lines | masks secret-looking query values and a userinfo password |
 | `soap_header(self, operation)` | when building a SOAP envelope; returns a dict for its Header | no Header |
+
+To send a type the default doesn't know, such as a database driver's range type, handle it and pass everything else on:
+
+```python
+class Bookings(Client):
+    def encode_value(self, value):
+        if isinstance(value, psycopg.types.range.Range):
+            return {"lower": value.lower, "upper": value.upper}
+        return super().encode_value(value)
+```
 
 `request.operation` names the call: the route's `operation=` (generated clients set it to the spec's `operationId` or WSDL operation name), else the method name. It's useful for logging, metrics and APIs that want the call name in the request.
 

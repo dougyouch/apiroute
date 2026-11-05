@@ -1,10 +1,11 @@
 import hashlib
 import json
+from collections.abc import Callable
 from typing import Any
 
 from apiroute.graphql.graphql_uploads import GraphQLUploads
-from apiroute.json_default import json_default
 from apiroute.multipart_encoder import MultipartEncoder
+from apiroute.value_encoder import VALUE_ENCODER
 
 CONTENT_TYPE = "application/json"
 PERSISTED_MODES = (None, "hash", "register")
@@ -45,18 +46,22 @@ class GraphQLBody:
         }
         if self._persisted is not None:
             payload["extensions"] = {"persistedQuery": {"version": 1, "sha256Hash": self.sha256}}
+        # the client's encode_value converts variables JSON can't hold; tests pass no client
+        encode_value = getattr(client, "encode_value", VALUE_ENCODER.encode)
         uploads = GraphQLUploads(payload["variables"])
         if uploads:
-            return _multipart(payload, uploads)
-        return json.dumps(payload, default=json_default).encode(), CONTENT_TYPE
+            return _multipart(payload, uploads, encode_value)
+        return json.dumps(payload, default=encode_value).encode(), CONTENT_TYPE
 
 
-def _multipart(payload: dict[str, Any], uploads: GraphQLUploads) -> tuple[bytes, str]:
+def _multipart(
+    payload: dict[str, Any], uploads: GraphQLUploads, encode_value: Callable[[Any], Any]
+) -> tuple[bytes, str]:
     """The GraphQL multipart request spec: operations (the payload, files as null), map,
     then one part per file, in that order."""
     operations = {**payload, "variables": uploads.variables}
     fields = {
-        "operations": json.dumps(operations, default=json_default),
+        "operations": json.dumps(operations, default=encode_value),
         "map": json.dumps(uploads.map()),
     }
     return MultipartEncoder().encode({**fields, **uploads.files()})

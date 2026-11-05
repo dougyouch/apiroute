@@ -13,6 +13,7 @@ from apiroute.transport_configuration import ASYNC_TRANSPORTS, TRANSPORTS, is_as
 from apiroute.transports.async_transport import AsyncTransport
 from apiroute.transports.transport import Transport
 from apiroute.url_redactor import UrlRedactor
+from apiroute.value_encoder import VALUE_ENCODER
 
 # Network failures worth another attempt; other errors (bad URL, TLS) won't fix themselves
 RETRYABLE_ERRORS = (httpx.TimeoutException, httpx.NetworkError, httpx.RemoteProtocolError)
@@ -87,6 +88,20 @@ class Client(Router):
     def escape_path(self, value: Any) -> str:
         """Every path value is escaped so it stays one segment; override to allow '/'."""
         return quote(str(value), safe="")
+
+    def encode_value(self, value: Any) -> Any:
+        """Converts a value JSON can't hold, for JSON bodies and GraphQL variables, and for
+        query, form and multipart values (as text). The default covers UUIDs, dates and times,
+        timedeltas, Decimals, IP addresses, enums, sets, dataclasses, pydantic models and more
+        (see ValueEncoder), and raises TypeError for anything else. Override it for other types,
+        returning something JSON can hold (or that this method converts in turn):
+
+            def encode_value(self, value):
+                if isinstance(value, Range):  # a psycopg range
+                    return {"lower": value.lower, "upper": value.upper}
+                return super().encode_value(value)
+        """
+        return VALUE_ENCODER.encode(value)
 
     def redact_url(self, url: str) -> str:
         """The URL as error messages and log lines show it. By default, query values whose names
