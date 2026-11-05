@@ -107,7 +107,7 @@ class RequestBuilder:
     def _encode_query(self, query: dict[str, Any]) -> list[tuple[str, str]]:
         if callable(self._config.query_format):
             return self._config.query_format(self._root, query)
-        return QueryEncoder(self._config.query_format).encode(query)
+        return QueryEncoder(self._config.query_format, self._root.encode_value).encode(query)
 
     def _content(
         self,
@@ -122,7 +122,7 @@ class RequestBuilder:
         # a format may need a body even when there's no data: a SOAP envelope always is one
         if data is None and not getattr(body_format, "encodes_empty", False):
             return None, None
-        return BodyEncoder(body_format).encode(self._root, data)
+        return BodyEncoder(body_format, self._root.encode_value).encode(self._root, data)
 
     def _route_body(
         self,
