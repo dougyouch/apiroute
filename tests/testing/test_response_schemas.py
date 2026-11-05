@@ -166,12 +166,55 @@ def test_error_statuses_and_bodies_that_arent_json_pass(client_class):
     assert api.status() == {"wrong": 1}  # no JSON content type: not checked
 
 
-def test_paginated_routes_pass_unchecked(client_class):
+def test_each_page_of_a_paginated_method_is_checked(client_class):
     mock = MockTransport(check=ResponseSchemas(client_class))
     mock.on(operation="listPets").respond(
-        httpx.Response(200, json=[{"id": 1}]), httpx.Response(200, json=[])
+        httpx.Response(200, json=[{"id": 1, "name": "a"}]),
+        httpx.Response(200, json=[{"id": 2}]),
     )
-    assert list(client_class(transport=mock).pets.list_pets_all()) == [{"id": 1}]
+    pets = client_class(transport=mock).pets.list_pets_all()
+    assert next(pets) == {"id": 1, "name": "a"}  # the first page fits
+    with pytest.raises(MockResponseMismatch, match=r"listPets: GET https://pets.test/pets\?page=2"):
+        next(pets)
+
+
+def test_pages_that_fit_pass(client_class):
+    mock = MockTransport(check=ResponseSchemas(client_class))
+    mock.on(operation="listPets").respond(
+        httpx.Response(200, json=[{"id": 1, "name": "a"}]), httpx.Response(200, json=[])
+    )
+    assert [pet.id for pet in client_class(transport=mock).pets.models.list_pets_all()] == [1]
+
+
+@pytest.mark.anyio
+async def test_async_pages_are_checked(client_class):
+    mock = MockTransport(check=ResponseSchemas(client_class))
+    mock.on(operation="listPets").respond(httpx.Response(200, json=[{"id": "x"}]))
+    pets = client_class(async_transport=mock.aio).aio.pets.list_pets_all()
+    with pytest.raises(MockResponseMismatch):
+        await pets.__anext__()
+
+
+def test_paginated_routes_without_a_one_page_method_pass_unchecked():
+    from apiroute import Client, route
+    from apiroute.pagination import PageNumber
+
+    class Api(Client):
+        base_url = "https://x.test"
+        everything = route("/everything", paginate=PageNumber())  # no _all suffix
+        list_things_all = route("/things", paginate=PageNumber())  # no list_things
+        get_one = route("/one", operation="other")
+        get_one_all = route("/one", paginate=PageNumber())  # a different operation
+
+    schemas = ResponseSchemas(Api)
+    mock = MockTransport(check=schemas)
+    for path in ("/everything", "/things"):
+        mock.on(path=path).respond(httpx.Response(200, json=[1]), httpx.Response(200, json=[]))
+    mock.on(path="/one").respond(httpx.Response(200, json=[1]), httpx.Response(200, json=[]))
+    api = Api(transport=mock)
+    assert list(api.everything()) == [1]
+    assert list(api.list_things_all()) == [1]
+    assert list(api.get_one_all()) == [1]
 
 
 def test_calls_through_other_clients_pass_unchecked(client_class):

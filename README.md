@@ -959,7 +959,7 @@ def test_adopt():
         adopt(1)  # MockResponseMismatch: getPet: GET .../pets/1: ... name: Field required
 ```
 
-Nothing is loaded up front. A checked call imports only its own section's `.models` view and the model its route returns, as the typed call would, so a client with thousands of operations (eBay's, GitHub's) stays as light in tests as in production. Calls through other clients, routes without a `.models` method, paginated and `poll=` routes, and responses that aren't `2xx` JSON pass unchecked. It needs pydantic.
+Nothing is loaded up front. A checked call imports only its own section's `.models` view and the model its route returns, as the typed call would, so a client with thousands of operations (eBay's, GitHub's) stays as light in tests as in production. Each page of a generated paginated method (`list_pets_all`) is checked against the model of the operation's one-page method (`list_pets`), since a page is that response. Calls through other clients, routes without a `.models` method, `poll=` routes, paginated routes without a one-page method, and responses that aren't `2xx` JSON pass unchecked. It needs pydantic.
 
 ## Code generation
 

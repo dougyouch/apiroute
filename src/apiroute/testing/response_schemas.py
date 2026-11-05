@@ -6,11 +6,16 @@ import httpx
 
 from apiroute.call_context import CallContext
 from apiroute.lazy_attribute import LazyAttribute
+from apiroute.route_definition import RouteDefinition
+from apiroute.route_method import RouteMethod
 from apiroute.testing.mock_call import MockCall
 from apiroute.testing.mock_response_mismatch import MockResponseMismatch
 from apiroute.typed_client import TypedClient, _adapter, _resolved
 
 _UNKNOWN = object()
+# The suffix of a generated paginated method (codegen's AllPagesMethods): list_pets_all pages
+# through list_pets, whose response model is the page's
+ALL_PAGES_SUFFIX = "_all"
 
 
 class ResponseSchemas:
@@ -24,8 +29,12 @@ class ResponseSchemas:
     A MockTransport, mock_transport() or cassette() given it as check= validates every 2xx
     JSON response to a call made through client_class (or a subclass) against the model the
     route's .models method returns, and raises MockResponseMismatch (an AssertionError) when
-    it doesn't fit. Routes without a .models method or a model pass unchecked, as do paginated
-    and poll= routes, whose responses are pages and status bodies rather than the model.
+    it doesn't fit. Routes without a .models method or a model pass unchecked, as do poll=
+    routes, whose responses are status bodies rather than the model.
+
+    A generated paginated method (list_pets_all) has each page checked against the model of
+    the operation's one-page method (list_pets), the same request: a page is that response.
+    A paginated route without such a method on its class passes unchecked.
 
     Nothing is loaded up front: a checked call imports only its own section's .models view
     and the model that route returns, as making the typed call would, so a client with
@@ -50,7 +59,9 @@ class ResponseSchemas:
         context = CallContext.current()
         if context is None or not self._checks(context, call, response):
             return
-        model = self.model_for(type(context.router), context.definition.name)
+        router_class = type(context.router)
+        route_name = _checked_route(router_class, context.definition)
+        model = None if route_name is None else self.model_for(router_class, route_name)
         if model is None:
             return
         response.read()
@@ -66,11 +77,27 @@ class ResponseSchemas:
         return (
             isinstance(context.router._root, self._client_class)
             and call.operation == (definition.operation or definition.name)
-            and definition.paginate is None
             and definition.poll is None
             and response.is_success
             and "json" in response.headers.get("content-type", "")
         )
+
+
+def _checked_route(router_class: type, definition: RouteDefinition) -> str | None:
+    """The route whose .models method gives the model to check a response against: the route
+    itself, or for a paginated one, the one-page route it pages through (the same name less
+    _all, and the same operation), else None."""
+    if definition.paginate is None:
+        return definition.name
+    if not definition.name.endswith(ALL_PAGES_SUFFIX):
+        return None
+    base = definition.name.removesuffix(ALL_PAGES_SUFFIX)
+    route = inspect.getattr_static(router_class, base, None)
+    if not isinstance(route, RouteMethod):
+        return None
+    page = route.definition
+    same_operation = (page.operation or page.name) == (definition.operation or definition.name)
+    return base if page.paginate is None and same_operation else None
 
 
 def _declared(router_class: type, route_name: str) -> Any:
