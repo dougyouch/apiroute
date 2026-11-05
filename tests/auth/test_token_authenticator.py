@@ -146,3 +146,68 @@ def test_each_event_loop_gets_its_own_lock():
     auth = AsyncCounting()
     assert asyncio.run(auth.acredential(None)).value == "t1"
     assert asyncio.run(auth.acredential(None)).value == "t2"
+
+
+class Wall:
+    def __init__(self):
+        self.now = 1_700_000_000.0
+
+    def __call__(self):
+        return self.now
+
+
+class FromExpiresAt(TokenAuthenticator):
+    def __init__(self, wall, lifetime, **kwargs):
+        super().__init__(wall_clock=wall, **kwargs)
+        self.fetches = 0
+        self._wall = wall
+        self._lifetime = lifetime
+
+    def fetch_token(self, client):
+        self.fetches += 1
+        return AccessToken(f"t{self.fetches}", expires_at=self._wall() + self._lifetime)
+
+
+def test_expires_at_is_refreshed_leeway_seconds_before():
+    clock, wall = Clock(), Wall()
+    auth = FromExpiresAt(wall, 300, leeway=30, clock=clock)
+    auth.credential(None)
+    clock.now += 269
+    assert auth.credential(None).value == "t1"
+    clock.now += 1
+    assert auth.credential(None).value == "t2"
+
+
+def test_a_token_that_has_already_expired_is_fetched_again_each_time():
+    auth = FromExpiresAt(Wall(), -10, clock=Clock())
+    assert [auth.credential(None).value for _ in range(3)] == ["t1", "t2", "t3"]
+
+
+def test_seed_uses_a_token_without_fetching():
+    clock = Clock()
+    auth = Counting(clock=clock)
+    saved = AccessToken("saved", expires_in=600)
+    auth.seed(saved)
+    assert auth.credential(None) is saved
+    assert auth.token is saved
+    assert auth.fetches == 0
+    clock.now += 600
+    assert auth.credential(None).value == "t1"
+
+
+def test_a_seeded_token_with_expires_at_follows_the_wall_clock():
+    clock, wall = Clock(), Wall()
+    auth = Counting(clock=clock, wall_clock=wall)
+    auth.seed(AccessToken("saved", expires_at=wall.now + 100))
+    clock.now += 69
+    assert auth.credential(None).value == "saved"
+    clock.now += 1
+    assert auth.credential(None).value == "t1"
+
+
+def test_a_seeded_token_the_api_rejects_is_replaced():
+    auth = Counting()
+    saved = AccessToken("saved")
+    auth.seed(saved)
+    auth.invalidate(saved)
+    assert auth.credential(None).value == "t1"

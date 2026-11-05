@@ -49,7 +49,7 @@ class OAuth2RefreshToken(OAuth2TokenAuthenticator):
         self.refresh_token = refresh_token
         self._on_refresh = on_refresh
         if access_token is not None:
-            self._store(access_token)
+            self.seed(access_token)
 
     def grant(self) -> dict[str, str]:
         return {"grant_type": "refresh_token", "refresh_token": self.refresh_token}

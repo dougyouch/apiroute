@@ -16,13 +16,22 @@ class TokenAuthenticator(Authenticator):
     the API rejects it, and sends it as an Authorization header.
 
     Subclasses implement fetch_token(), and afetch_token() for async calls (by default it calls
-    fetch_token()). Concurrent calls wait for one fetch rather than each fetching: one lock for
-    sync calls in every thread, and one per event loop for async calls.
+    fetch_token()). seed() starts it with a token you already have, such as one you stored.
+    Concurrent calls wait for one fetch rather than each fetching: one lock for sync calls in
+    every thread, and one per event loop for async calls.
     """
 
-    def __init__(self, *, leeway: float = 30.0, clock: Callable[[], float] = time.monotonic):
+    def __init__(
+        self,
+        *,
+        leeway: float = 30.0,
+        clock: Callable[[], float] = time.monotonic,
+        wall_clock: Callable[[], float] = time.time,
+    ):
         self._leeway = leeway
         self._clock = clock
+        # For tokens that say when they expire (expires_at) rather than for how long
+        self._wall_clock = wall_clock
         self._lock = threading.Lock()
         self._loop_locks = LoopLocks()
         # (token, deadline) in one attribute, so a reader never sees half of an update
@@ -35,6 +44,11 @@ class TokenAuthenticator(Authenticator):
     async def afetch_token(self, client: Any) -> AccessToken:
         """fetch_token() for async calls; override when fetching does I/O."""
         return self.fetch_token(client)
+
+    def seed(self, token: AccessToken) -> None:
+        """Uses this token until it expires or the API rejects it, without fetching one first:
+        e.g. a token saved from an earlier run."""
+        self._store(token)
 
     @property
     def token(self) -> AccessToken | None:
@@ -80,7 +94,8 @@ class TokenAuthenticator(Authenticator):
         return token
 
     def _deadline(self, token: AccessToken) -> float | None:
-        if token.expires_in is None:
+        lifetime = token.lifetime(self._wall_clock())
+        if lifetime is None:
             return None
-        margin = min(self._leeway, token.expires_in / 2)
-        return self._clock() + token.expires_in - margin
+        margin = min(self._leeway, max(lifetime, 0.0) / 2)
+        return self._clock() + lifetime - margin

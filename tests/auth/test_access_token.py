@@ -48,3 +48,19 @@ def test_a_boolean_expires_in_is_ignored():
 def test_a_reply_without_an_access_token_fails(reply):
     with pytest.raises(AuthError, match="no access_token"):
         AccessToken.from_reply(reply)
+
+
+def test_expires_at_gives_the_lifetime_from_now():
+    token = AccessToken("a", expires_at=1_000_060.0)
+    assert token.lifetime(1_000_000.0) == 60.0
+    assert token.lifetime(1_000_090.0) == -30.0
+
+
+def test_expires_in_is_the_lifetime_whatever_the_time():
+    assert AccessToken("a", expires_in=60).lifetime(123.0) == 60
+    assert AccessToken("a").lifetime(123.0) is None
+
+
+def test_expires_in_and_expires_at_cant_both_be_given():
+    with pytest.raises(ValueError, match="not both"):
+        AccessToken("a", expires_in=60, expires_at=1_000_060.0)

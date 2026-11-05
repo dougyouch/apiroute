@@ -8,6 +8,7 @@ from apiroute.auth.token_authenticator import TokenAuthenticator
 from apiroute.auth.token_endpoint import TokenEndpoint
 from apiroute.auth.token_error import token_error
 from apiroute.base_url_validator import validate_base_url
+from apiroute.shared_transports import shared_transports
 from apiroute.unexpected_response import UnexpectedResponse
 
 
@@ -70,8 +71,4 @@ class OAuth2TokenAuthenticator(TokenAuthenticator):
         return form
 
     def _endpoint(self, client: Any) -> TokenEndpoint:
-        return TokenEndpoint(
-            base_url=self.token_url,
-            transport=client._http_transport(),
-            async_transport=client._async_http_transport(),
-        )
+        return TokenEndpoint(base_url=self.token_url, **shared_transports(client))

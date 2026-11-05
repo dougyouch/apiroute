@@ -400,11 +400,34 @@ class Orders(Client):
 
 - **`OAuth2ClientCredentials(token_url, client_id, client_secret, ...)`** is the client credentials grant, for server-to-server APIs.
 - **`OAuth2RefreshToken(token_url, client_id, refresh_token, client_secret=None, access_token=None, on_refresh=None, ...)`** is the refresh token grant, for acting for a user after an authorization flow you ran. When the server rotates refresh tokens, the new one replaces the old; `on_refresh` is called with every new `AccessToken`, so you can store it. `access_token=AccessToken(...)` starts with a token you already have.
-- **Tokens are kept and shared.** A token is reused until `leeway` seconds (default 30, or half its lifetime if that's shorter) before its `expires_in`. Concurrent calls wait for one fetch: sync calls across threads, async calls per event loop. Each instance has its own token unless the authenticator is set on the class.
+- **Tokens are kept and shared.** A token is reused until `leeway` seconds (default 30, or half its lifetime if that's shorter) before it expires. An `AccessToken` says when with `expires_in` (seconds, as OAuth replies do) or `expires_at` (a Unix time, as many other token APIs and a JWT's `exp` do). `authenticator.seed(token)` starts with a token you saved from an earlier run. Concurrent calls wait for one fetch: sync calls across threads, async calls per event loop. Each instance has its own token unless the authenticator is set on the class.
 - **Client authentication.** The client secret is sent as HTTP Basic (`client_secret_basic`, which every server must accept); `auth_method="post"` sends it as form fields instead. Without a secret, only `client_id` is sent (a public client).
 - **Token requests use the client's transports**, so connection pools, `mock_transport()` and `MockTransport` answer them too (their operation is `"token"`). Sections use their client's authenticator. `on_request` runs after the credential is applied, so a signature can cover it.
 - **Failures.** A token endpoint that refuses (`invalid_client`, `invalid_grant` ...) raises `apiroute.auth.AuthError`, with `.error`, `.description` and `.response`. It isn't retried, and its message never includes the secret or refresh token. A network error reaching the endpoint is raised as httpx's error, so the call's retries may retry it.
-- **Other schemes.** Subclass `OAuth2TokenAuthenticator` and return a different grant's form fields from `grant()`, or subclass `TokenAuthenticator` and implement `fetch_token(client)` (and `afetch_token` for non-blocking async) for tokens from anywhere else. For a credential that isn't a bearer token, subclass `Authenticator` itself and implement `credential`, `apply` and `invalidate`. Override `rejects(error)` for an API that reports an expired credential some other way, such as with an exception you raise from `check_response`.
+- **Other schemes.** Subclass `OAuth2TokenAuthenticator` and return a different grant's form fields from `grant()`, or subclass `TokenAuthenticator` and implement `fetch_token(client)` (and `afetch_token` for non-blocking async) for tokens from anywhere else. `shared_transports(client)` gives the keyword arguments for a helper client that sends through the same transports as the API client, so its requests share connection pools and test mocks. For a credential that isn't a bearer token, subclass `Authenticator` itself and implement `credential`, `apply` and `invalidate`. Override `rejects(error)` for an API that reports an expired credential some other way, such as with an exception you raise from `check_response`.
+
+```python
+from apiroute import Client, route, shared_transports
+from apiroute.auth import AccessToken, TokenAuthenticator
+
+
+class AcmeAuth(Client):
+    base_url = "https://auth.acme.com"
+    refresh = route("POST", "/session/refresh")
+
+
+class AcmeTokens(TokenAuthenticator):  # JSON in, {token, refreshToken, expiresAt} out
+    def __init__(self, refresh_token: str):
+        super().__init__()
+        self.refresh_token = refresh_token
+
+    def fetch_token(self, client):
+        reply = AcmeAuth(**shared_transports(client)).refresh(
+            body={"refreshToken": self.refresh_token}
+        )
+        self.refresh_token = reply["refreshToken"]  # rotated on every refresh
+        return AccessToken(reply["token"], expires_at=reply["expiresAt"])
+```
 
 ```python
 from apiroute.auth import Authenticator
