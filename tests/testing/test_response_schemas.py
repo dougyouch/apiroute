@@ -43,6 +43,16 @@ paths:
           content:
             application/json:
               schema: {$ref: "#/components/schemas/Pet"}
+  /stores:
+    get:
+      operationId: listStores
+      tags: [stores]
+      responses:
+        "200":
+          description: ok
+          content:
+            application/json:
+              schema: {type: array, items: {$ref: "#/components/schemas/Store"}}
   /health:
     get:
       operationId: health
@@ -59,6 +69,11 @@ paths:
               schema: {type: object, required: [up], properties: {up: {type: boolean}}}
 components:
   schemas:
+    Store:
+      type: object
+      required: [id]
+      properties:
+        id: {type: integer}
     Pet:
       type: object
       required: [id, name]
@@ -91,13 +106,27 @@ def client_class(tmp_path_factory):
         sys.path.remove(str(root))
 
 
-def test_finds_each_operations_model_sections_included(client_class):
+def test_finds_each_routes_model(client_class):
     schemas = ResponseSchemas(client_class)
-    assert schemas.model_for("getPet").__name__ == "Pet"
-    assert str(schemas.model_for("listPets")).startswith("list[")
-    assert schemas.model_for("status").__name__ == "StatusResponse"
-    assert schemas.model_for("health") is str  # a text response: only JSON ones are checked
-    assert schemas.model_for("nope") is None
+    pets = client_class.pets
+    assert schemas.model_for(pets, "get_pet").__name__ == "Pet"
+    assert str(schemas.model_for(pets, "list_pets")).startswith("list[")
+    assert schemas.model_for(client_class, "status").__name__ == "StatusResponse"
+    assert schemas.model_for(client_class, "health") is str  # text: only JSON is checked
+    assert schemas.model_for(client_class, "nope") is None
+
+
+def test_only_the_calling_sections_models_are_imported(client_class):
+    import sys
+
+    package = client_class.__module__.rsplit(".", 1)[0]
+    mock = MockTransport(check=ResponseSchemas(client_class))
+    mock.on(operation="getPet").respond(httpx.Response(200, json={"id": 1, "name": "Rex"}))
+    client_class(transport=mock).pets.get_pet(1)
+    loaded = {name for name in sys.modules if name.startswith(package)}
+    assert f"{package}.pets.models.client" in loaded
+    assert f"{package}.pets.models.schemas.pet" in loaded
+    assert not any(name.startswith(f"{package}.stores") for name in loaded)
 
 
 def test_a_mock_that_fits_passes(client_class):
@@ -137,11 +166,24 @@ def test_error_statuses_and_bodies_that_arent_json_pass(client_class):
     assert api.status() == {"wrong": 1}  # no JSON content type: not checked
 
 
-def test_paginated_all_methods_check_each_page(client_class):
+def test_paginated_routes_pass_unchecked(client_class):
     mock = MockTransport(check=ResponseSchemas(client_class))
-    mock.on(operation="listPets").respond(httpx.Response(200, json=[{"id": 1}]))
-    with pytest.raises(MockResponseMismatch):
-        list(client_class(transport=mock).pets.list_pets_all())
+    mock.on(operation="listPets").respond(
+        httpx.Response(200, json=[{"id": 1}]), httpx.Response(200, json=[])
+    )
+    assert list(client_class(transport=mock).pets.list_pets_all()) == [{"id": 1}]
+
+
+def test_calls_through_other_clients_pass_unchecked(client_class):
+    from apiroute import Client, route
+
+    class Other(Client):
+        base_url = "https://pets.test"
+        get_pet = route("/pets/{id}", operation="getPet")
+
+    mock = MockTransport(check=ResponseSchemas(client_class))
+    mock.on(operation="getPet").respond(httpx.Response(200, json={"id": 1}))
+    assert Other(transport=mock).get_pet(id=1) == {"id": 1}
 
 
 @pytest.mark.anyio
@@ -177,7 +219,6 @@ def test_hand_written_clients_and_unknown_operations_pass_unchecked():
         base_url = "https://x.test"
         get_x = route("/x")
         admin = Admin
-        also_admin = Admin  # the same section twice is walked once
 
     schemas = ResponseSchemas(Api)
     mock = MockTransport(check=schemas)
@@ -186,4 +227,4 @@ def test_hand_written_clients_and_unknown_operations_pass_unchecked():
     api = Api(transport=mock)
     assert api.get_x() == {"anything": True}
     assert api.admin.get_stats() == []
-    assert schemas.model_for("get_stats") is None
+    assert schemas.model_for(Admin, "get_stats") is None

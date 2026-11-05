@@ -8,6 +8,7 @@ import httpx
 from apiroute.async_retry_runner import AsyncRetryRunner
 from apiroute.auth.async_auth_attempts import AsyncAuthAttempts
 from apiroute.auth.auth_attempts import AuthAttempts, Authorize
+from apiroute.call_context import CallContext
 from apiroute.client_config import ClientConfig
 from apiroute.idempotency_key import IdempotencyKey
 from apiroute.polling.async_poller import AsyncPoller
@@ -44,6 +45,14 @@ class RouteExecutor:
         self._options = options
 
     def execute(self, values: Mapping[str, Any]) -> Any:
+        with CallContext(self._router, self._definition).active():
+            return self._execute(values)
+
+    async def execute_async(self, values: Mapping[str, Any]) -> Any:
+        with CallContext(self._router, self._definition).active():
+            return await self._execute_async(values)
+
+    def _execute(self, values: Mapping[str, Any]) -> Any:
         spec, policy, pipeline, read_policy = self._prepare(values)
         transport = pipeline.wrap(self._root._http_transport())
         runner = RetryRunner(policy, self._root._sleep)
@@ -83,7 +92,7 @@ class RouteExecutor:
             reconnector = StreamReconnector(policy, self._root._sleep, open_stream)
         return stream.consume(response, stack, reconnector)
 
-    async def execute_async(self, values: Mapping[str, Any]) -> Any:
+    async def _execute_async(self, values: Mapping[str, Any]) -> Any:
         spec, policy, pipeline, read_policy = self._prepare(values)
         transport = pipeline.wrap_async(self._root._async_http_transport())
         runner = AsyncRetryRunner(policy, self._root._async_sleep)

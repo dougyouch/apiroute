@@ -945,7 +945,7 @@ def test_repository_stats():
 
 ### Checking mocks against the spec
 
-A mock written by hand, or recorded a year ago, can drift from the API. `ResponseSchemas(GeneratedClient)` reads the response type of every operation from a generated client's `.models` layer. Given as `check=` to `MockTransport`, `mock_transport()` or `cassette()`, it validates every `2xx` JSON response against its operation's model, and raises `MockResponseMismatch` (an `AssertionError`) with pydantic's explanation when it doesn't fit:
+A mock written by hand, or recorded a year ago, can drift from the API. `ResponseSchemas(GeneratedClient)` checks responses against the response types a generated client's `.models` layer declares. Given as `check=` to `MockTransport`, `mock_transport()` or `cassette()`, it validates every `2xx` JSON response against its operation's model, and raises `MockResponseMismatch` (an `AssertionError`) with pydantic's explanation when it doesn't fit:
 
 ```python
 from apiroute.testing import ResponseSchemas, mock_transport
@@ -959,7 +959,7 @@ def test_adopt():
         adopt(1)  # MockResponseMismatch: getPet: GET .../pets/1: ... name: Field required
 ```
 
-Operations the client doesn't declare, and responses that aren't `2xx` JSON, pass unchecked. It needs pydantic, and imports every section of the client the first time it's used.
+Nothing is loaded up front. A checked call imports only its own section's `.models` view and the model its route returns, as the typed call would, so a client with thousands of operations (eBay's, GitHub's) stays as light in tests as in production. Calls through other clients, routes without a `.models` method, paginated and `poll=` routes, and responses that aren't `2xx` JSON pass unchecked. It needs pydantic.
 
 ## Code generation
 
